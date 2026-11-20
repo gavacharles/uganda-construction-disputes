@@ -101,7 +101,7 @@ def code(df):
     df["outcome_rule"] = "unclear"
     for label, rx in reversed(OUTCOME):  # earlier entries take precedence
         df.loc[tail.str.contains(rf"(?i){rx}"), "outcome_rule"] = label
-    df["precedents_cited"] = t.map(lambda s: sorted(set(re.findall(NEUTRAL_CIT, s))))
+    df["precedents_cited"] = t.map(lambda s: sorted({" ".join(x.split()) for x in re.findall(NEUTRAL_CIT, s)}))
     df["n_precedents"] = df["precedents_cited"].str.len() + t.str.count(REPORT_CIT)
     df["clauses_cited"] = t.str.findall(r"(?i)\b(?:sub-?)?clause\s+(\d+(?:\.\d+)*)").map(
         lambda x: sorted(set(x)))
@@ -111,14 +111,20 @@ def code(df):
     df["years_to_decision"] = df["year"] - df["year_filed"]
     df["doc_type"] = t.str[:3000].str.extract(r"(?i)\b(JUDGMENT|RULING)\b")[0].str.title().fillna("unknown")
     # relevance + PRISMA flags
-    cons = t.str.count(r"(?i)contractor|construction|works contract|building|road works|bill of quantities|engineer")
-    arb = t.str.count(r"(?i)arbitra")
+    cons = t.str.count(
+        r"(?i)contractor|construction|\bworks\b|building|\broads?\b|bill of quantities|\bBOQ\b|engineer|procur|"
+        r"tender|\bbid|subcontract|\bsite\b|architect|surveyor|certificate of (completion|payment)|consultan|"
+        r"materials|cement|excavat|\bplant\b")
+    arb = t.str.count(r"(?i)arbitra|adjudicat")
+    df["cons_score"], df["arb_score"] = cons, arb
     df["stream_rule"] = "neither"
-    df.loc[cons >= 5, "stream_rule"] = "construction"
+    df.loc[cons >= 10, "stream_rule"] = "construction"
     df.loc[arb >= 5, "stream_rule"] = "arbitration"
-    df.loc[(cons >= 5) & (arb >= 5), "stream_rule"] = "both"
-    df["flag_minimal"] = df["words"] < MIN_WORDS
-    df["flag_irrelevant"] = df["stream_rule"].eq("neither")
+    df.loc[(cons >= 10) & (arb >= 5), "stream_rule"] = "both"
+    df["flag_minimal"] = df["words"].fillna(0) < MIN_WORDS
+    df["flag_irrelevant"] = (cons < 4) & (arb < 2)          # almost no domain vocabulary
+    df["flag_review"] = df["stream_rule"].eq("neither") & ~df["flag_irrelevant"]  # borderline: read it
+    df.loc[df.flag_review, "stream_rule"] = "construction (to confirm)"
     df["include"] = ~(df.flag_minimal | df.flag_irrelevant)
     df["source"] = "ocr"
     return df
@@ -126,8 +132,8 @@ def code(df):
 
 def fig_years(df, path):
     c = df[df.include].groupby(["year", "stream_rule"]).size().unstack(fill_value=0)
-    order = [s for s in ["construction", "both", "arbitration"] if s in c]
-    colors = {"construction": "#2a78d6", "both": "#1baf7a", "arbitration": "#eb6834"}
+    order = [s for s in ["construction", "construction (to confirm)", "both", "arbitration"] if s in c]
+    colors = {"construction": "#2a78d6", "construction (to confirm)": "#9fc3ee", "both": "#1baf7a", "arbitration": "#eb6834"}
     fig, ax = plt.subplots(figsize=(7, 3.6))
     bottom = 0
     for s in order:

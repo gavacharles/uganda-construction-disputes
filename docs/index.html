@@ -105,7 +105,7 @@ details li{margin:4px 0}
 
   <section id="issues">
     <h2>What the disputes are about</h2>
-    <p class="sub">Share of judgments mentioning each issue family. A judgment can raise several issues.</p>
+    <p class="sub">Share of judgments mentioning each issue family, from register summaries only (scanned judgments are coded from full text, which would not be comparable). A judgment can raise several issues.</p>
     <div class="controls"><div class="seg" role="group" aria-label="Stream" id="issueSeg">
       <button data-v="Construction-related" aria-pressed="true">Construction-related</button>
       <button data-v="Arbitration-related" aria-pressed="false">Arbitration-related</button></div></div>
@@ -124,7 +124,8 @@ details li{margin:4px 0}
   <details>
     <summary>Data and method notes</summary>
     <ul>
-      <li>Source: registers compiled from the Uganda Legal Information Institute (ULII): 375 judgments 2015–2025 and 107 more from 2026 (to 16 November). 2026 is a partial year, so its raw count is not comparable with full years; rates per 1,000 ULII judgments are.</li>
+      <li>Source: judgments published by the Uganda Legal Information Institute (ULII). 2015–2025: 450 judgments (375 from registers built on ULII summaries, plus 75 scanned judgments read by OCR). 2026: 107 more, to 16 November. 2026 is a partial year, so its raw count is not comparable with full years; rates per 1,000 ULII judgments are.</li>
+      <li>Scanned judgments: 91 candidates were OCR'd (mean confidence 94.6); 16 were excluded (3 minimal reasoning, 13 not construction or arbitration). 33 of the 75 included are PPDA Appeals Tribunal decisions.</li>
       <li>Issues, outcomes, party types and arbitration application types are coded by transparent keyword rules from short register fields (src/code/rules.py). They are being validated against a manually coded gold set of 150 judgments.</li>
       <li>ULII holds only part of each year's judgments, especially before 2020, so litigated cases on ULII are a filtered sample.</li>
       <li>Party type is taken from the first-named party on each side; the first-named party is treated as the initiator.</li>

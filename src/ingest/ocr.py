@@ -16,7 +16,7 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 import pandas as pd
 import pdfplumber
 import pytesseract
-from pdf2image import convert_from_path
+from pdf2image import convert_from_path, pdfinfo_from_path
 
 from src.config import INTERIM, LOGS
 
@@ -63,7 +63,9 @@ def main(limit=None):
         if pdf.name in set(done.file):
             continue
         layer = text_layer(pdf)
-        if sum(len(t.strip()) for t in layer) > 200 * len(layer) * 0.5:  # born-digital
+        if not layer:  # pdfplumber reads 0 pages on some malformed page trees; trust poppler
+            layer = [""] * pdfinfo_from_path(str(pdf))["Pages"]
+        if layer and sum(len(t.strip()) for t in layer) > 200 * len(layer) * 0.5:  # born-digital
             rows += [(pdf.name, i + 1, t, 100.0, len(t.split()), "text_layer")
                      for i, t in enumerate(layer)]
         else:

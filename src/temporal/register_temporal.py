@@ -18,7 +18,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 
 from src.code.rules import ISSUES, code_registers  # noqa: E402
-from src.config import INTERIM, OUT, RAW, SEED  # noqa: E402
+from src.config import INTERIM, OUT, PROCESSED, RAW, SEED  # noqa: E402
 
 DEST = OUT / "temporal"
 LAST = pd.Timestamp("2026-11-16")              # last decision date in the 2026 registers
@@ -142,6 +142,7 @@ def bin_of(y):
 
 
 def issue_trends(c):
+    c = c[c.source == "register"]  # issue coding comparable only on register summaries
     rows = []
     cols = [f"issue:{k}" for k in ISSUES]
     for stream_name, sub in [("construction-related", c[c.stream.isin(["construction", "both"])]),
@@ -290,7 +291,7 @@ def fig5(d):
 def main():
     np.random.seed(SEED)
     DEST.mkdir(parents=True, exist_ok=True)
-    c = code_registers(pd.read_parquet(INTERIM / "registers_cases.parquet"))
+    c = code_registers(pd.read_parquet(PROCESSED / "cases.parquet"))  # registers + included scanned judgments
     c["bin"] = c["year"].map(bin_of)
     c.to_parquet(INTERIM / "registers_coded.parquet", index=False)
     leg = pd.read_parquet(INTERIM / "legislation.parquet")
@@ -299,7 +300,7 @@ def main():
     tot = ulii_totals()
 
     a = annual(c, tot)
-    tt = pd.concat([trend_tests(a).assign(sample="all register cases"),
+    tt = pd.concat([trend_tests(a).assign(sample="all cases"),
                     trend_tests(annual(c[~c.subject_unconfirmed], tot)).assign(
                         sample="excl. 'subject matter not stated'")])
     q = quarterly(c, tot)
@@ -325,7 +326,7 @@ def main():
         "fig5_duration.png": "Figure 5. Years from filing to decision for suits and appeals, by period of decision (filing year taken from the case number).",
     }
     md = ["# Register-based temporal analysis (2015–2026)\n",
-          f"Cases: {len(c)} (construction-related {c.stream.isin(['construction', 'both']).sum()}, "
+          f"Cases: {len(c)} ({(c.source == 'ocr').sum()} from OCR'd scanned judgments; issue shares use register cases only) (construction-related {c.stream.isin(['construction', 'both']).sum()}, "
           f"arbitration-related {c.stream.isin(['arbitration', 'both']).sum()}). 2026 coverage to {LAST.date()} "
           f"(fraction {F26:.2f}); 2026 ULII total ≈ {ULII_2026}.\n"]
     for k, v in tables.items():

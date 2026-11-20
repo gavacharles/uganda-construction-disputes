@@ -70,7 +70,7 @@ def export(scope):
     c = pd.read_parquet(INTERIM / "registers_coded.parquet")
     c = c[c.period.isin(periods)].copy()
     c["bin"] = c["year"].map(lambda y: next(k for k, (a, b) in bins.items() if a <= y <= b))
-    src = f"data/interim/registers_coded.parquet ({len(c)} ULII register cases {scope}, rule-coded)"
+    src = f"data/interim/registers_coded.parquet ({len(c)} ULII cases {scope}: registers + OCR'd scanned judgments, rule-coded)"
     tot = ulii_totals()
     tot = tot[tot.index.isin(c.year.unique())]
     n = {}
@@ -101,7 +101,7 @@ def export(scope):
 
     rows = []
     for sname, m in [("Construction-related", ["construction", "both"]), ("Arbitration-related", ["arbitration", "both"])]:
-        s = c[c.stream.isin(m)]
+        s = c[c.stream.isin(m) & (c.source == "register")]  # issue coding from register summaries only
         for period, d in [("All years", s)] + [(b, s[s.bin == b]) for b in bins]:
             for col in [x for x in c if x.startswith("issue:")]:
                 rows.append({"stream": sname, "period": period, "issue": col[6:],
