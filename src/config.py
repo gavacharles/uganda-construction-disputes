@@ -15,3 +15,6 @@ HEADER_ROW = 3  # zero-based; rows 1-3 are title/source notes
 
 for p in (INTERIM, PROCESSED, LOGS, FIGS):
     p.mkdir(parents=True, exist_ok=True)
+
+# full-text judgments live outside OneDrive (1.5 GB); originals zipped in 'Downloaded judgements/'
+JUDGMENTS = Path.home() / "Research" / "ulii_judgments"
