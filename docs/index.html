@@ -1,0 +1,408 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Uganda Construction Disputes Explorer</title>
+<meta name="description" content="Construction and arbitration judgments on ULII, 2015–2026: flows, trends, issues, outcomes and legislation.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=Inter:wght@400;500;600&display=swap">
+<style>
+/* Layout: one reading column, charts full column width, controls above each chart */
+:root{
+  --bg:#fbfbf9; --panel:#ffffff; --fg:#1b1b19; --muted:#5d5c57; --line:#e3e2dc; --grid:#ecebe6;
+  --accent:#2a78d6;
+  --c-con:#2a78d6; --c-both:#d55181; --c-arb:#eb6834;
+  --o-win:#1baf7a; --o-part:#eda100; --o-ref:#6250d6; --o-loss:#4b4a46; --o-unc:#b8b6ae;
+  --serif:"Source Serif 4", Georgia, "Times New Roman", serif;
+  --sans:Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#161615; --panel:#1f1f1d; --fg:#eeede8; --muted:#b0afa6; --line:#34332f; --grid:#2a2a27;
+    --accent:#3987e5; --c-con:#3987e5; --o-loss:#9a988f; --o-unc:#5f5e58; color-scheme:dark; }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.55 var(--sans)}
+.wrap{max-width:1040px;margin:0 auto;padding-block:40px 64px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+h1{font:600 clamp(28px,4vw,40px)/1.15 var(--serif);margin:0 0 12px;text-wrap:balance}
+h2{font:600 22px/1.25 var(--serif);margin:0 0 6px;text-wrap:balance}
+.eyebrow{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
+.lede{font-size:18px;max-width:68ch;margin:0}
+.lede b{font-variant-numeric:tabular-nums}
+section{margin-top:56px}
+.sub{color:var(--muted);max-width:70ch;margin:0 0 14px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;position:relative}
+.controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{font:500 13px var(--sans);border:0;background:transparent;color:var(--muted);padding:7px 12px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--accent);color:#fff}
+.seg button:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+select{font:500 13px var(--sans);padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--fg)}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
+.chart{width:100%;min-height:200px}
+.chart svg{display:block;width:100%;height:auto;overflow:visible}
+.axis text,.lbl{fill:var(--muted);font:12px var(--sans)}
+.axis path,.axis line{stroke:var(--line)}
+.gridl line{stroke:var(--grid)}.gridl path{display:none}
+.node-lbl{font:12px var(--sans);fill:var(--fg);paint-order:stroke;stroke:var(--panel);stroke-width:3px}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:13px;color:var(--muted);margin-top:10px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+.tip{position:absolute;pointer-events:none;background:var(--panel);border:1px solid var(--line);border-radius:8px;
+  box-shadow:0 6px 20px rgba(0,0,0,.12);padding:8px 10px;font-size:13px;max-width:280px;opacity:0;transition:opacity .1s;z-index:5}
+.tip b{display:block;font-weight:600}
+.note{font-size:13px;color:var(--muted);margin-top:10px}
+details{margin-top:56px;border-top:1px solid var(--line);padding-top:16px;color:var(--muted);font-size:14px}
+summary{cursor:pointer;color:var(--fg);font-weight:500}
+details li{margin:4px 0}
+.tbl{overflow-x:auto}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <div class="eyebrow" id="eyebrow">ULII construction &amp; arbitration judgments</div>
+  <h1>Uganda Construction Disputes Explorer</h1>
+  <div class="controls" style="margin:4px 0 14px">
+    <span class="lbl" style="font-size:13px">Data</span>
+    <div class="seg" role="group" aria-label="Date range" id="scopeSeg">
+      <button data-v="2015-2025" aria-pressed="true">2015–2025</button>
+      <button data-v="2015-2026" aria-pressed="false">2015–2026 (to 16 Nov 2026)</button>
+    </div>
+  </div>
+  <p class="lede" id="lede">Loading…</p>
+
+  <section id="flows">
+    <h2>How disputes move through the courts</h2>
+    <p class="sub">Each band is a group of judgments. Hover a band or a box to see counts. The initiating party is the claimant, applicant or appellant.</p>
+    <div class="controls">
+      <div class="seg" role="group" aria-label="Flow view" id="viewSeg">
+        <button data-v="pathway" aria-pressed="true">Stream → proceeding → outcome</button>
+        <button data-v="arbitration" aria-pressed="false">Arbitration application → outcome</button>
+        <button data-v="parties" aria-pressed="false">Initiator → respondent → outcome</button>
+      </div>
+      <select id="periodSel" aria-label="Period"></select>
+    </div>
+    <div class="card"><div class="chart" id="sankey" style="min-height:440px"></div><div class="tip"></div></div>
+  </section>
+
+  <section id="growth">
+    <h2>More judgments, but not a bigger share of ULII</h2>
+    <p class="sub">Raw counts track how many judgments ULII publishes. Dividing by ULII's yearly total removes that growth.</p>
+    <div class="grid2">
+      <div class="card"><div class="lbl" style="margin-bottom:6px">Judgments per year</div><div class="chart" id="counts"></div><div class="tip"></div></div>
+      <div class="card"><div class="lbl" style="margin-bottom:6px">Per 1,000 judgments on ULII</div><div class="chart" id="rates"></div><div class="tip"></div></div>
+    </div>
+    <div class="legend"><span><i style="background:var(--c-con)"></i>Construction-related</span><span><i style="background:var(--c-arb)"></i>Arbitration-related</span></div>
+    <div class="tbl"><p class="note" id="trendNote"></p></div>
+  </section>
+
+  <section id="legislation">
+    <h2>Legislation and the case flow</h2>
+    <p class="sub">Enactments from the legislation registers (top) against judgments per quarter (bottom). Hollow markers still need checking against the gazetted text.</p>
+    <div class="card"><div class="chart" id="legis" style="min-height:420px"></div><div class="tip"></div></div>
+  </section>
+
+  <section id="issues">
+    <h2>What the disputes are about</h2>
+    <p class="sub">Share of judgments mentioning each issue family. A judgment can raise several issues.</p>
+    <div class="controls"><div class="seg" role="group" aria-label="Stream" id="issueSeg">
+      <button data-v="Construction-related" aria-pressed="true">Construction-related</button>
+      <button data-v="Arbitration-related" aria-pressed="false">Arbitration-related</button></div></div>
+    <div class="card"><div class="chart" id="heat" style="min-height:460px"></div><div class="tip"></div></div>
+  </section>
+
+  <section id="outcomes">
+    <h2>Who wins, and how long it takes</h2>
+    <div class="grid2">
+      <div class="card"><div class="lbl" style="margin-bottom:6px">Initiating party succeeded, % with 95% interval</div><div class="chart" id="success"></div><div class="tip"></div>
+        <div class="legend"><span><i style="background:var(--c-con)"></i>Construction-related</span><span><i style="background:var(--c-arb)"></i>Arbitration-related</span></div></div>
+      <div class="card"><div class="lbl" style="margin-bottom:6px">Years from filing to decision (suits and appeals)</div><div class="chart" id="duration"></div><div class="tip"></div></div>
+    </div>
+  </section>
+
+  <details>
+    <summary>Data and method notes</summary>
+    <ul>
+      <li>Source: registers compiled from the Uganda Legal Information Institute (ULII): 375 judgments 2015–2025 and 107 more from 2026 (to 16 November). 2026 is a partial year, so its raw count is not comparable with full years; rates per 1,000 ULII judgments are.</li>
+      <li>Issues, outcomes, party types and arbitration application types are coded by transparent keyword rules from short register fields (src/code/rules.py). They are being validated against a manually coded gold set of 150 judgments.</li>
+      <li>ULII holds only part of each year's judgments, especially before 2020, so litigated cases on ULII are a filtered sample.</li>
+      <li>Party type is taken from the first-named party on each side; the first-named party is treated as the initiator.</li>
+      <li>Duration uses the filing year in the case number and applies only to suits and appeals.</li>
+    </ul>
+  </details>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<script>
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+let PERIODS = [];
+const fmt = d3.format(",");
+const state = {view:"pathway", period:"All years", stream:"Construction-related", scope:"2015-2025"};
+let D = {}; const CACHE = {};
+
+function tip(el){ return el.closest(".card").querySelector(".tip"); }
+function showTip(t, ev, html){
+  const box = t.parentElement.getBoundingClientRect();
+  t.innerHTML = html; t.style.opacity = 1;
+  let x = ev.clientX - box.left + 12, y = ev.clientY - box.top + 12;
+  if (x + 290 > box.width) x = Math.max(4, ev.clientX - box.left - 290);
+  t.style.left = x + "px"; t.style.top = y + "px";
+}
+const hideTip = t => t.style.opacity = 0;
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+const COLORS = {
+  "Construction":"--c-con","Construction + arbitration":"--c-both","Arbitration":"--c-arb",
+  "Initiator succeeded":"--o-win","Partly succeeded":"--o-part","Referred to arbitration":"--o-ref",
+  "Initiator failed":"--o-loss","Outcome unclear":"--o-unc",
+  "Company":"--c-con","Individual":"--o-part","State body":"--c-both","Bank / insurer":"--o-win","Unknown":"--o-unc",
+  "Stay / referral":"--c-con","Set-aside":"--c-arb","Enforcement":"--o-win","Interim measures":"--o-part",
+  "Appointment":"--c-both","Other arbitration":"--o-unc"
+};
+const ORDER = ["Construction","Construction + arbitration","Arbitration","Suit","Appeal","Application / cause",
+  "Arbitration cause","Other proceeding","Stay / referral","Set-aside","Enforcement","Interim measures","Appointment",
+  "Other arbitration","Company","Individual","State body","Bank / insurer","Unknown",
+  "Initiator succeeded","Partly succeeded","Referred to arbitration","Initiator failed","Outcome unclear"];
+const colorOf = n => COLORS[n] ? css(COLORS[n]) : css("--o-unc");
+
+/* ---------- Sankey (hand-built layout) ---------- */
+function drawSankey(){
+  const el = document.getElementById("sankey"), t = tip(el);
+  const rows = D.flows.filter(r => r.view === state.view && r.period === state.period);
+  el.innerHTML = "";
+  if (!rows.length){ el.textContent = "No judgments in this period."; return; }
+  const W = el.clientWidth, H = W < 520 ? 520 : 440, nodeW = 12, pad = 12;
+  const nSteps = d3.max(rows, r => r.step) + 1, nCols = nSteps + 1;
+  const nodes = new Map();
+  const node = (col, name) => { const k = col + "|" + name;
+    if (!nodes.has(k)) nodes.set(k, {k, col, name, in:0, out:0, ins:[], outs:[]}); return nodes.get(k); };
+  const links = rows.map(r => { const s = node(r.step, r.source), tg = node(r.step + 1, r.target);
+    const l = {s, t:tg, v:r.value, step:r.step}; s.out += r.value; tg.in += r.value; s.outs.push(l); tg.ins.push(l); return l; });
+  nodes.forEach(n => n.v = Math.max(n.in, n.out));
+  const cols = d3.range(nCols).map(c => [...nodes.values()].filter(n => n.col === c)
+    .sort((a, b) => (ORDER.indexOf(a.name) - ORDER.indexOf(b.name)) || b.v - a.v));
+  const k = d3.min(cols, c => (H - pad * (c.length - 1)) / d3.sum(c, n => n.v));
+  const x = c => c * (W - nodeW) / (nCols - 1);
+  cols.forEach(c => { let y = 0; c.forEach(n => { n.x = x(n.col); n.y = y; n.h = Math.max(1, n.v * k); y += n.h + pad; });
+    const off = (H - (y - pad)) / 2; c.forEach(n => n.y += off); });
+  nodes.forEach(n => {
+    let y = n.y; n.outs.sort((a, b) => a.t.y - b.t.y).forEach(l => { l.sy = y; l.w = l.v * k; y += l.w; });
+    y = n.y; n.ins.sort((a, b) => a.s.y - b.s.y).forEach(l => { l.ty = y; y += l.v * k; });
+  });
+  const svg = d3.select(el).append("svg").attr("viewBox", `0 0 ${W} ${H}`).attr("role", "img")
+    .attr("aria-label", "Sankey diagram of judgments flowing between categories");
+  const linkColor = l => (l.step === nSteps - 1 && nSteps > 1) ? colorOf(l.t.name) : colorOf(l.s.name);
+  const lp = svg.append("g").selectAll("path").data(links).join("path")
+    .attr("d", l => { const x0 = l.s.x + nodeW, x1 = l.t.x, m = (x0 + x1) / 2, y0 = l.sy + l.w / 2, y1 = l.ty + l.w / 2;
+      return `M${x0},${y0}C${m},${y0} ${m},${y1} ${x1},${y1}`; })
+    .attr("fill", "none").attr("stroke", linkColor).attr("stroke-width", l => Math.max(1, l.w)).attr("stroke-opacity", .38)
+    .on("pointermove", (ev, l) => { lp.attr("stroke-opacity", d => d === l ? .75 : .15);
+      showTip(t, ev, `<b>${esc(l.s.name)} → ${esc(l.t.name)}</b>${fmt(l.v)} judgments · ${Math.round(100 * l.v / l.s.out)}% of ${esc(l.s.name)}`); })
+    .on("pointerleave", () => { lp.attr("stroke-opacity", .38); hideTip(t); });
+  const g = svg.append("g").selectAll("g").data([...nodes.values()]).join("g");
+  g.append("rect").attr("x", n => n.x).attr("y", n => n.y).attr("width", nodeW).attr("height", n => n.h)
+    .attr("rx", 2).attr("fill", n => (n.col > 0 && n.col < nCols - 1 && state.view === "pathway") ? css("--o-unc") : colorOf(n.name))
+    .on("pointermove", (ev, n) => { lp.attr("stroke-opacity", l => (l.s === n || l.t === n) ? .75 : .12);
+      showTip(t, ev, `<b>${esc(n.name)}</b>${fmt(n.v)} judgments`); })
+    .on("pointerleave", () => { lp.attr("stroke-opacity", .38); hideTip(t); });
+  g.filter(n => n.h > 9).append("text").attr("class", "node-lbl")
+    .attr("x", n => n.col === nCols - 1 ? n.x - 6 : n.x + nodeW + 6).attr("y", n => n.y + n.h / 2).attr("dy", ".35em")
+    .attr("text-anchor", n => n.col === nCols - 1 ? "end" : "start").text(n => `${n.name} (${n.v})`);
+}
+
+/* ---------- small line chart ---------- */
+function lineChart(id, data, series, yFmt, unit){
+  const el = document.getElementById(id), t = tip(el); el.innerHTML = "";
+  const W = el.clientWidth, H = 230, m = {t:10, r:12, b:26, l:36};
+  const x = d3.scalePoint(data.map(d => d.year), [m.l, W - m.r]).padding(.3);
+  const y = d3.scaleLinear([0, d3.max(data, d => d3.max(series, s => d[s.key])) * 1.1], [H - m.b, m.t]).nice();
+  const svg = d3.select(el).append("svg").attr("viewBox", `0 0 ${W} ${H}`).attr("role", "img").attr("aria-label", unit + " by year");
+  svg.append("g").attr("class", "gridl").attr("transform", `translate(${m.l},0)`).call(d3.axisLeft(y).ticks(4).tickSize(-(W - m.l - m.r)).tickFormat(""));
+  svg.append("g").attr("class", "axis").attr("transform", `translate(${m.l},0)`).call(d3.axisLeft(y).ticks(4).tickFormat(yFmt));
+  const every = W < 420 ? 3 : W < 600 ? 2 : 1;
+  svg.append("g").attr("class", "axis").attr("transform", `translate(0,${H - m.b})`)
+    .call(d3.axisBottom(x).tickValues(x.domain().filter((d, i) => i % every === 0)).tickFormat(d => d));
+  series.forEach(s => {
+    svg.append("path").datum(data).attr("fill", "none").attr("stroke", css(s.color)).attr("stroke-width", 2)
+      .attr("d", d3.line().x(d => x(d.year)).y(d => y(d[s.key])));
+    svg.append("g").selectAll("circle").data(data).join("circle").attr("cx", d => x(d.year)).attr("cy", d => y(d[s.key]))
+      .attr("r", 3.5).attr("fill", css(s.color)).attr("stroke", css("--panel")).attr("stroke-width", 1.5);
+  });
+  svg.append("g").selectAll("rect").data(data).join("rect").attr("x", d => x(d.year) - x.step() / 2).attr("width", x.step())
+    .attr("y", m.t).attr("height", H - m.t - m.b).attr("fill", "transparent")
+    .on("pointermove", (ev, d) => showTip(t, ev, `<b>${d.year}${d.year === 2026 ? " (to 16 Nov)" : ""}</b>` +
+      series.map(s => `${s.label}: ${yFmt(d[s.key])}`).join("<br>")))
+    .on("pointerleave", () => hideTip(t));
+}
+
+function drawGrowth(){
+  const a = D.annual.map(d => ({...d,
+    con_rate: 1000 * d.construction_related / d.ulii_judgments, arb_rate: 1000 * d.arbitration_related / d.ulii_judgments}));
+  const S = [{key:"construction_related", label:"Construction-related", color:"--c-con"},
+             {key:"arbitration_related", label:"Arbitration-related", color:"--c-arb"}];
+  lineChart("counts", a, S, d3.format(",.0f"), "Judgments");
+  lineChart("rates", a, [{...S[0], key:"con_rate"}, {...S[1], key:"arb_rate"}], d3.format(".1f"), "Rate per 1,000 ULII judgments");
+  const desc = r => r.trend === "no trend" ? `no significant trend (τ = ${r.tau}, p = ${r.p})`
+    : `a significant ${r.trend === "increasing" ? "rise" : "fall"} (τ = ${r.tau}, p = ${r.p})`;
+  const pick = (s, m) => D.trends.find(r => r.series === s && r.measure.startsWith(m));
+  document.getElementById("trendNote").textContent =
+    `Mann-Kendall tests over the years shown. Raw counts: construction-related ${desc(pick("construction-related", "count"))}; ` +
+    `arbitration-related ${desc(pick("arbitration-related", "count"))}. Per 1,000 ULII judgments: construction-related ` +
+    `${desc(pick("construction-related", "rate"))}; arbitration-related ${desc(pick("arbitration-related", "rate"))}.`;
+}
+
+/* ---------- legislation timeline + quarterly ---------- */
+function drawLegis(){
+  const el = document.getElementById("legis"), t = tip(el); el.innerHTML = "";
+  const groups = ["Procurement & PPP","Roads","Building & standards","Arbitration & ADR","Other construction"];
+  const W = el.clientWidth, m = {l: W < 520 ? 8 : 150, r:12}, laneH = 26, top = 8, H1 = top + groups.length * laneH, gap = 20, H2 = 190, H = H1 + gap + H2 + 26;
+  const lastY = d3.max(D.annual, d => d.year); const x = d3.scaleUtc([new Date("2015-01-01"), new Date(`${lastY + 1}-01-01`)], [m.l, W - m.r]);
+  const svg = d3.select(el).append("svg").attr("viewBox", `0 0 ${W} ${H}`).attr("role", "img")
+    .attr("aria-label", "Timeline of enactments above quarterly judgment counts");
+  const lane = d3.scaleBand(groups, [top, H1]).padding(.2);
+  svg.append("g").selectAll("line").data(groups).join("line").attr("x1", m.l).attr("x2", W - m.r)
+    .attr("y1", g => lane(g) + lane.bandwidth() / 2).attr("y2", g => lane(g) + lane.bandwidth() / 2).attr("stroke", css("--grid"));
+  svg.append("g").selectAll("text").data(groups).join("text").attr("class", "lbl")
+    .attr("x", W < 520 ? m.l : m.l - 8).attr("y", g => lane(g) + (W < 520 ? 2 : lane.bandwidth() / 2)).attr("dy", ".35em")
+    .attr("text-anchor", W < 520 ? "start" : "end").text(g => g);
+  const L = D.legislation.map(d => ({...d, dt: new Date(d.date)}));
+  svg.append("g").selectAll("circle").data(L).join("circle").attr("cx", d => x(d.dt))
+    .attr("cy", d => lane(d.group) + lane.bandwidth() / 2 + (W < 520 ? 4 : 0)).attr("r", 6)
+    .attr("fill", d => d.verified ? css("--accent") : css("--panel")).attr("stroke", css("--accent")).attr("stroke-width", 2)
+    .on("pointermove", (ev, d) => showTip(t, ev, `<b>${esc(d.title)}</b>${esc(d.date)} · ${esc(d.type)}<br>${esc(d.status || "")}${d.verified ? "" : "<br><i>To verify against gazette</i>"}`))
+    .on("pointerleave", () => hideTip(t));
+  const Q = D.quarterly.map(d => ({...d, dt: new Date(d.start)}));
+  const y0 = H1 + gap, y = d3.scaleLinear([0, d3.max(Q, d => Math.max(d.construction_related, d.arbitration_related))], [y0 + H2, y0]).nice();
+  svg.append("g").attr("class", "gridl").attr("transform", `translate(${m.l},0)`).call(d3.axisLeft(y).ticks(4).tickSize(-(W - m.l - m.r)).tickFormat(""));
+  svg.append("g").attr("class", "axis").attr("transform", `translate(${m.l},0)`).call(d3.axisLeft(y).ticks(4));
+  svg.append("g").attr("class", "axis").attr("transform", `translate(0,${y0 + H2})`).call(d3.axisBottom(x).ticks(W < 520 ? 6 : 12));
+  [["construction_related","--c-con"],["arbitration_related","--c-arb"]].forEach(([k, c]) =>
+    svg.append("path").datum(Q).attr("fill", "none").attr("stroke", css(c)).attr("stroke-width", 2)
+      .attr("d", d3.line().curve(d3.curveStepAfter).x(d => x(d.dt)).y(d => y(d[k]))));
+  svg.append("text").attr("class", "lbl").attr("x", m.l).attr("y", y0 - 6).text("Judgments per quarter");
+  const ruler = svg.append("line").attr("y1", top).attr("y2", y0 + H2).attr("stroke", css("--muted")).attr("stroke-dasharray", "3 3").attr("opacity", 0);
+  svg.append("rect").attr("x", m.l).attr("y", y0).attr("width", W - m.l - m.r).attr("height", H2).attr("fill", "transparent")
+    .on("pointermove", ev => { const dt = x.invert(d3.pointer(ev)[0]); const q = Q.find(d => d.dt <= dt && dt < d3.utcMonth.offset(d.dt, 3));
+      if (!q) return; ruler.attr("x1", x(q.dt)).attr("x2", x(q.dt)).attr("opacity", 1);
+      showTip(t, ev, `<b>${q.quarter}</b>Construction-related: ${q.construction_related}<br>Arbitration-related: ${q.arbitration_related}`); })
+    .on("pointerleave", () => { ruler.attr("opacity", 0); hideTip(t); });
+}
+
+/* ---------- issue heatmap ---------- */
+function drawHeat(){
+  const el = document.getElementById("heat"), t = tip(el); el.innerHTML = "";
+  const rows = D.issues.filter(d => d.stream === state.stream);
+  const cols = ["All years", ...PERIODS];
+  const issues = [...new Set(rows.map(d => d.issue))]
+    .sort((a, b) => rows.find(r => r.issue === b && r.period === "All years").share_pct - rows.find(r => r.issue === a && r.period === "All years").share_pct);
+  const W = el.clientWidth, labW = W < 520 ? 130 : 230, H = issues.length * 32 + 30;
+  const x = d3.scaleBand(cols, [labW, W]).padding(.06), y = d3.scaleBand(issues, [26, H]).padding(.06);
+  const col = d3.scaleSequential([0, 60], d3.interpolateBlues);
+  const svg = d3.select(el).append("svg").attr("viewBox", `0 0 ${W} ${H}`).attr("role", "img").attr("aria-label", "Heatmap of issue shares by period");
+  svg.append("g").selectAll("text").data(cols).join("text").attr("class", "lbl").attr("x", c => x(c) + x.bandwidth() / 2)
+    .attr("y", 14).attr("text-anchor", "middle").style("font-weight", c => c === "All years" ? 600 : 400).text(c => W < 520 ? c.replace("20", "'").replace("–20", "–'") : c);
+  svg.append("g").selectAll("text").data(issues).join("text").attr("class", "lbl").attr("x", labW - 8)
+    .attr("y", i => y(i) + y.bandwidth() / 2).attr("dy", ".35em").attr("text-anchor", "end").text(i => i);
+  const cell = svg.append("g").selectAll("g").data(rows).join("g").attr("transform", d => `translate(${x(d.period)},${y(d.issue)})`);
+  cell.append("rect").attr("width", x.bandwidth()).attr("height", y.bandwidth()).attr("rx", 3)
+    .attr("fill", d => d.share_pct == null ? css("--grid") : col(Math.min(60, d.share_pct)))
+    .on("pointermove", (ev, d) => showTip(t, ev, `<b>${esc(d.issue)}</b>${d.period}: ${d.cases} of ${d.total} judgments (${d.share_pct}%)`))
+    .on("pointerleave", () => hideTip(t));
+  cell.append("text").attr("x", x.bandwidth() / 2).attr("y", y.bandwidth() / 2).attr("dy", ".35em").attr("text-anchor", "middle")
+    .style("font", "12px var(--sans)").style("pointer-events", "none").attr("fill", d => d.share_pct > 35 ? "#fff" : "#1b1b19")
+    .text(d => d.share_pct == null ? "" : Math.round(d.share_pct));
+}
+
+/* ---------- success + duration ---------- */
+function drawSuccess(){
+  const el = document.getElementById("success"), t = tip(el); el.innerHTML = "";
+  const W = el.clientWidth, H = 240, m = {t:10, r:12, b:26, l:36};
+  const x = d3.scalePoint(PERIODS, [m.l, W - m.r]).padding(.4), y = d3.scaleLinear([0, 100], [H - m.b, m.t]);
+  const svg = d3.select(el).append("svg").attr("viewBox", `0 0 ${W} ${H}`).attr("role", "img").attr("aria-label", "Success rate by period");
+  svg.append("g").attr("class", "gridl").attr("transform", `translate(${m.l},0)`).call(d3.axisLeft(y).ticks(5).tickSize(-(W - m.l - m.r)).tickFormat(""));
+  svg.append("g").attr("class", "axis").attr("transform", `translate(${m.l},0)`).call(d3.axisLeft(y).ticks(5).tickFormat(d => d + "%"));
+  svg.append("g").attr("class", "axis").attr("transform", `translate(0,${H - m.b})`).call(d3.axisBottom(x).tickFormat(d => W < 420 ? d.replace(/20(\d\d)/g, "'$1") : d));
+  [["Construction-related","--c-con",-7],["Arbitration-related","--c-arb",7]].forEach(([s, c, dx]) => {
+    const d = D.success.filter(r => r.stream === s), g = svg.append("g").attr("transform", `translate(${dx},0)`);
+    g.append("path").datum(d).attr("fill", "none").attr("stroke", css(c)).attr("stroke-width", 2).attr("d", d3.line().x(r => x(r.period)).y(r => y(r.success_pct)));
+    g.selectAll("line").data(d).join("line").attr("x1", r => x(r.period)).attr("x2", r => x(r.period))
+      .attr("y1", r => y(r.ci_low)).attr("y2", r => y(r.ci_high)).attr("stroke", css(c)).attr("stroke-width", 2);
+    g.selectAll("circle").data(d).join("circle").attr("cx", r => x(r.period)).attr("cy", r => y(r.success_pct)).attr("r", 5)
+      .attr("fill", css(c)).attr("stroke", css("--panel")).attr("stroke-width", 2)
+      .on("pointermove", (ev, r) => showTip(t, ev, `<b>${s}, ${r.period}</b>${r.succeeded} of ${r.decided} decided (${r.success_pct}%)<br>95% interval ${r.ci_low}–${r.ci_high}%`))
+      .on("pointerleave", () => hideTip(t));
+  });
+}
+
+function drawDuration(){
+  const el = document.getElementById("duration"), t = tip(el); el.innerHTML = "";
+  const W = el.clientWidth, H = 240, m = {t:10, r:12, b:26, l:36}, d = D.duration;
+  const x = d3.scaleBand(PERIODS, [m.l, W - m.r]).padding(.45), y = d3.scaleLinear([0, d3.max(d, r => r.max) + 1], [H - m.b, m.t]).nice();
+  const svg = d3.select(el).append("svg").attr("viewBox", `0 0 ${W} ${H}`).attr("role", "img").attr("aria-label", "Box plots of years to decision by period");
+  svg.append("g").attr("class", "gridl").attr("transform", `translate(${m.l},0)`).call(d3.axisLeft(y).ticks(5).tickSize(-(W - m.l - m.r)).tickFormat(""));
+  svg.append("g").attr("class", "axis").attr("transform", `translate(${m.l},0)`).call(d3.axisLeft(y).ticks(5));
+  svg.append("g").attr("class", "axis").attr("transform", `translate(0,${H - m.b})`).call(d3.axisBottom(x).tickFormat(p => W < 420 ? p.replace(/20(\d\d)/g, "'$1") : p));
+  const g = svg.append("g").selectAll("g").data(d).join("g").attr("transform", r => `translate(${x(r.period)},0)`);
+  const bw = x.bandwidth(), ink = css("--fg"), c = css("--c-con");
+  g.append("line").attr("x1", bw / 2).attr("x2", bw / 2).attr("y1", r => y(r.whisker_low)).attr("y2", r => y(r.whisker_high)).attr("stroke", ink);
+  g.append("rect").attr("width", bw).attr("y", r => y(r.q3)).attr("height", r => Math.max(1, y(r.q1) - y(r.q3))).attr("rx", 3)
+    .attr("fill", c).attr("fill-opacity", .25).attr("stroke", c).attr("stroke-width", 1.5);
+  g.append("line").attr("x2", bw).attr("y1", r => y(r.median)).attr("y2", r => y(r.median)).attr("stroke", ink).attr("stroke-width", 2);
+  g.filter(r => r.max > r.whisker_high).append("circle").attr("cx", bw / 2).attr("cy", r => y(r.max)).attr("r", 3).attr("fill", css("--muted"));
+  g.append("rect").attr("width", bw).attr("y", m.t).attr("height", H - m.t - m.b).attr("fill", "transparent")
+    .on("pointermove", (ev, r) => showTip(t, ev, `<b>${r.period}</b>${r.cases} suits and appeals<br>Median ${r.median} years (IQR ${r.q1}–${r.q3})<br>Longest ${r.max} years`))
+    .on("pointerleave", () => hideTip(t));
+}
+
+function drawLede(){
+  const a = D.annual, n = d3.sum(a, d => d.all), first = a[0], full = a.filter(d => d.year <= 2025), last = full[full.length - 1];
+  const r = D.trends.find(d => d.series === "all" && d.measure.startsWith("rate"));
+  const y0 = first.year, y1 = d3.max(a, d => d.year);
+  document.getElementById("eyebrow").textContent = `ULII construction & arbitration judgments · ${y0}–${y1}`;
+  const el = document.getElementById("lede"); el.textContent = "";
+  const b = s => { const e = document.createElement("b"); e.textContent = s; return e; };
+  const trendTxt = r.trend === "no trend" ? "no significant trend" : r.trend === "increasing" ? "a significant rise" : "a significant fall";
+  el.append(b(fmt(n)), ` construction and arbitration judgments, ${y0}–${y1}. Annual totals rose from `, b(first.all), ` in ${y0} to `, b(last.all),
+    ` in ${last.year}, but as a share of everything ULII publishes they show `, b(trendTxt), ` (Mann-Kendall p = ${r.p}).`);
+}
+
+function drawAll(){ drawSankey(); drawGrowth(); drawLegis(); drawHeat(); drawSuccess(); drawDuration(); }
+
+function wireSeg(id, key, fn){
+  document.querySelectorAll(`#${id} button`).forEach(btn => btn.addEventListener("click", () => {
+    state[key] = btn.dataset.v;
+    document.querySelectorAll(`#${id} button`).forEach(b => b.setAttribute("aria-pressed", b === btn));
+    fn();
+  }));
+}
+
+const NAMES = ["flows","annual","quarterly","legislation","issues","success","duration","trends"];
+function load(scope){
+  if (CACHE[scope]) return Promise.resolve(CACHE[scope]);
+  const out = {};
+  return Promise.all(NAMES.map(n => fetch(`data/${scope}/${n}.json`).then(r => r.json()).then(j => out[n] = j.rows)))
+    .then(() => CACHE[scope] = out);
+}
+function setScope(){
+  return load(state.scope).then(d => {
+    D = d;
+    PERIODS = [...new Set(D.success.map(r => r.period))];
+    const sel = document.getElementById("periodSel");
+    sel.replaceChildren(...["All years", ...PERIODS].map(p => new Option(p)));
+    if (!["All years", ...PERIODS].includes(state.period)) state.period = "All years";
+    sel.value = state.period;
+    drawLede(); drawAll();
+  });
+}
+
+setScope().then(() => {
+    wireSeg("viewSeg", "view", drawSankey); wireSeg("issueSeg", "stream", drawHeat); wireSeg("scopeSeg", "scope", setScope);
+    document.getElementById("periodSel").addEventListener("change", e => { state.period = e.target.value; drawSankey(); });
+    let w = innerWidth; addEventListener("resize", () => { if (innerWidth !== w) { w = innerWidth; drawAll(); } });
+    matchMedia("(prefers-color-scheme: dark)").addEventListener("change", drawAll);
+  })
+  .catch(err => { document.getElementById("lede").textContent = "The data files could not be loaded. Open this page through a web server (see README), not as a local file."; console.error(err); });
+</script>
+</body>
+</html>

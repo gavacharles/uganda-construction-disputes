@@ -1,0 +1,17 @@
+# data (raw is read-only; derived data is reproducible from src/)
+/data/
+*.zip
+*.xlsx
+*.docx
+*.pdf
+/outputs/
+/Temporal_Analysis_Output/
+/2015-2025/
+/2026/
+# env
+.venv/
+.venv*/
+__pycache__/
+*.pyc
+.env
+.DS_Store
