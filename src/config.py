@@ -1,9 +1,16 @@
-"""Project paths and constants."""
+"""Project paths and constants.
+
+Working folder (code, derived data, outputs): this repository, outside OneDrive.
+Raw inputs (read-only): the OneDrive project folder SOURCE, linked in as data/raw/<period>.
+"""
 from pathlib import Path
 
 SEED = 42
 ROOT = Path(__file__).resolve().parents[1]
-RAW = ROOT / "data" / "raw"          # read-only (symlinks to period folders)
+SOURCE = Path.home() / "Library/CloudStorage/OneDrive-Personal(2)/PhD/UJ/Research/Papers/Temporal Analysis"
+RAW = ROOT / "data" / "raw"          # read-only symlinks -> SOURCE/2015-2025, SOURCE/2026
+DOWNLOADS = SOURCE / "Downloaded judgements"   # user's zips + gold_download_list.xlsx
+JUDGMENTS = Path.home() / "Research" / "ulii_judgments"   # extracted full-text PDFs (1.5 GB)
 INTERIM = ROOT / "data" / "interim"
 PROCESSED = ROOT / "data" / "processed"
 OUT = ROOT / "outputs"
@@ -15,6 +22,8 @@ HEADER_ROW = 3  # zero-based; rows 1-3 are title/source notes
 
 for p in (INTERIM, PROCESSED, LOGS, FIGS):
     p.mkdir(parents=True, exist_ok=True)
-
-# full-text judgments live outside OneDrive (1.5 GB); originals zipped in 'Downloaded judgements/'
-JUDGMENTS = Path.home() / "Research" / "ulii_judgments"
+RAW.mkdir(parents=True, exist_ok=True)
+for period in PERIODS:  # link raw period folders from OneDrive (never copied or modified)
+    link = RAW / period
+    if not link.exists() and (SOURCE / period).exists():
+        link.symlink_to(SOURCE / period)

@@ -15,3 +15,8 @@ __pycache__/
 *.pyc
 .env
 .DS_Store
+# private planning notes and local editor settings
+/CLAUDE.md
+/COMPENDIUM_PLAN.md
+/codebook.md
+/.vscode/

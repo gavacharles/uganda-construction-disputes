@@ -12,9 +12,9 @@ import pandas as pd
 import pdfplumber
 from pdf2image import pdfinfo_from_path
 
-from src.config import INTERIM, JUDGMENTS, LOGS, PROCESSED, ROOT
+from src.config import DOWNLOADS, INTERIM, JUDGMENTS, LOGS, PROCESSED
 
-SRC = ROOT / "Downloaded judgements"
+SRC = DOWNLOADS
 DEST = JUDGMENTS
 
 

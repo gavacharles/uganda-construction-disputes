@@ -10,7 +10,7 @@ from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.datavalidation import DataValidation
 
-from src.config import INTERIM, JUDGMENTS, OUT, ROOT, SEED
+from src.config import DOWNLOADS, INTERIM, JUDGMENTS, OUT, SEED
 
 YN, YNNA = ["Y", "N"], ["Y", "N", "NA"]
 PARTY = ["state body", "contractor", "subcontractor", "consultant", "supplier", "private employer",
@@ -74,7 +74,7 @@ def build(ws, n):
 
 
 def main():
-    gold = pd.read_excel(ROOT / "Downloaded judgements" / "gold_download_list.xlsx")
+    gold = pd.read_excel(DOWNLOADS / "gold_download_list.xlsx")
     ix = pd.read_parquet(INTERIM / "judgments_index.parquet").set_index("case_id")
     seg = pd.read_parquet(INTERIM / "segments.parquet").set_index("case_id")
     g = pd.DataFrame({
