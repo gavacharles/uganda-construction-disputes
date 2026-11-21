@@ -11,6 +11,7 @@ import re
 import pandas as pd
 
 from src.config import HEADER_ROW, INTERIM, LOGS, PERIODS, RAW
+from src.review import apply_review as review
 
 CASE_COLS = {
     "Year": "year",
@@ -137,7 +138,7 @@ def check_against_summary(cases):
 
 def main():
     cases, raw_n = load_cases()
-    leg = load_legislation()
+    leg = review.apply_legislation(load_legislation())  # researcher's gazette checks
     scanned = load_scanned()
     cases.to_parquet(INTERIM / "registers_cases.parquet", index=False)
     leg.to_parquet(INTERIM / "legislation.parquet", index=False)

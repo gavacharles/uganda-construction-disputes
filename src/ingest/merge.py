@@ -7,6 +7,7 @@ import pandas as pd
 from rapidfuzz import fuzz
 
 from src.config import INTERIM, LOGS, PROCESSED
+from src.review import apply_review as review
 
 OUTCOME_TEXT = {  # OCR rule outcome -> register-style label, so one outcome coder serves both
     "allowed / granted": "Granted", "dismissed": "Dismissed", "struck out": "Struck out",
@@ -59,7 +60,15 @@ def finish(reg, o, ocr, xtr):
     pd.DataFrame(flags).to_csv(LOGS / "merge_report.csv", index=False)
 
     dup = o.case_id.isin(reg.case_id)
-    cases = pd.concat([reg, o[~dup]], ignore_index=True)
+    o = o[~dup]
+    # researcher decisions (manual/review/*.csv): drop excluded/duplicate cases, clear confirmed flags
+    dropped = review.excluded_cases()
+    drop_n = {k: int(o.case_id.isin(v).sum()) for k, v in dropped.items()}
+    o = o[~o.case_id.isin(set().union(*dropped.values()))].copy()
+    o.loc[o.case_id.isin(review.confirmed_cases()), "stream_to_confirm"] = False
+    pd.DataFrame([(cid, reason) for reason, ids in dropped.items() for cid in sorted(ids)],
+                 columns=["case_id", "reason"]).to_csv(LOGS / "exclusions_review.csv", index=False)
+    cases = pd.concat([reg, o], ignore_index=True)
     assert cases.case_id.is_unique
     cases.to_parquet(PROCESSED / "cases.parquet", index=False)
 
@@ -75,6 +84,8 @@ def finish(reg, o, ocr, xtr):
         ("downloads included", 0 if xtr is None else int(xtr.include.sum())),
         ("duplicates of register cases (case_id)", int(dup.sum())),
         ("possible party-name duplicates to review", len(flags)),
+        *[(k, n) for k, n in drop_n.items()],
+        ("still to confirm (stream)", int(cases.stream_to_confirm.sum())),
         ("final corpus", len(cases)),
     ], columns=["step", "n"])
     prisma.to_csv(LOGS / "prisma_counts.csv", index=False)
