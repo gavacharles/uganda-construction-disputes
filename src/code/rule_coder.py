@@ -22,14 +22,16 @@ F = re.I
 STATE = (r"attorney general|\bUNRA\b|national roads authority|ministry|local government|district (?:local )?(?:council|government)|"
          r"municipal|city council|\bKCCA\b|kampala capital city|town council|\bauthority\b|commission|national water|\bNWSC\b|"
          r"government|uganda electricity|\bUEGCL\b|\bUETCL\b|\bUEDCL\b|rural electrification|\bPPDA\b|uganda revenue|"
-         r"\bURA\b|university|parliament|police|prisons|national housing|\bNHCC\b|uganda railways|civil aviation|"
+         r"\bURA\b|(?:makerere|kyambogo|gulu|mbarara|busitema|muni|kabale|lira|soroti) university|parliament|police|prisons|national housing|\bNHCC\b|uganda railways|civil aviation|"
          r"\bUPDF\b|national (?:social security|medical stores|forestry|agricultural)|\bNSSF\b|uganda national|"
          r"secretary to the treasury|permanent secretary|registered trustees of .* (?:hospital|school)")
 BANK = r"\bbank\b|insurance|assurance|\bfinance\b|microfinance|\bsacco\b"
 CONSULT = r"consult|architect|surveyor|associates|engineers? (?:&|and) (?:planners|consultants)|planners|design(?:ers)?\b"
 SUPPLY = r"suppl(?:y|ies|iers?)|trading|traders|hardware|cement|steel|motors|equipment|machinery|stores|distributors|logistics"
 CONTRACTOR = r"construction|contractors?|builders?|building|engineering|civil works|roads? (?:works|construction)|works\b|infrastructure"
-COMPANY = r"\bltd\b|limited|company|\bco\.?\b|corporation|\bplc\b|\binc\b|enterprises|group|holdings|\bllc\b|\(pty\)|\bs\.?a\.?\b|joint venture|\bjv\b|trustees|\bgmbh\b"
+COMPANY = (r"\bltd\b|limited|company|\bco\.?\b|corporation|\bplc\b|\binc\b|enterprises|group|holdings|\bllc\b|\(pty\)|\bs\.?a\.?\b|"
+           r"joint venture|\bjv\b|trustees|\bgmbh\b|\bs\.?p\.?a\.?\b|\bnv\b|\bpvt\b|\ba\.?s\.?$|services|industries|investments|"
+           r"technologies|international|insaat|yapi|costruttori|ingenieria|infratech|advocates|association|council|foundation|hotel|school")
 FOREIGN = (r"china|chinese|kenya|tanzania|rwanda|burundi|south sudan|congo|ethiopia|egypt|india|turk|italia|japan|korea|"
            r"\(pty\)|\bgmbh\b|\bs\.?p\.?a\b|\bs\.?a\.?r\.?l\b|\bllc\b|\binc\b|overseas|\bbv\b|\bag\b|\bspa\b|dubai|emirates|\buae\b|"
            r"united kingdom|\bUK\b|mauritius|south africa|israel|portugal|spain|france|germany|nigeria|ghana")
@@ -72,6 +74,24 @@ def role_from_text(text, role):
     n = {k: len(re.findall(rx, t, F)) for k, rx in cues.items()}
     k, v = max(n.items(), key=lambda kv: kv[1])
     return k if v else None
+
+
+FIRM = ("private employer", "contractor", "supplier", "consultant")
+
+
+def party_context(ta, tb, stream):
+    """Codebook conventions: firms in pure arbitration (non-construction) disputes are 'other'; in construction
+    disputes the firm facing a state body is the contractor, and whoever faces a contractor is the employer."""
+    if stream == "arbitration":
+        return tuple("other" if t in FIRM else t for t in (ta, tb))
+    out = [ta, tb]
+    for i, j in ((0, 1), (1, 0)):
+        if out[i] == "state body" and out[j] in ("private employer", "individual"):
+            out[j] = "contractor"
+    for i, j in ((0, 1), (1, 0)):
+        if out[i] == "contractor" and out[j] == "individual":
+            out[j] = "private employer"
+    return tuple(out)
 
 
 def sides(parties):
@@ -251,10 +271,35 @@ def interest(holding):
     return (rates[0] if rates else None), basis
 
 
+MONEY_RX = re.compile(r"((?:UGX|Ug\.?\s?Shs?\.?|U\.?\s?Shs?\.?|Shs\.?|USh|US\$|USD|\$|EUR|€))\s?([\d][\d,]{3,}(?:\.\d+)?)", F)
+PAY_CUE = re.compile(r"pay|paid|award|sum of|judgment (?:is entered )?(?:for|in)|special damages|outstanding|balance|refund|"
+                     r"due|principal|decree|entitled|recover|certified|amount of", F)
+NOT_PRINCIPAL = re.compile(r"general damages|exemplary|aggravated|punitive|costs|interest|nominal damages|mesne", F)
+
+
+def principal_awarded(holding):
+    """Sums in the orders that the court makes payable, excluding general/exemplary damages, costs and interest."""
+    out = []
+    for m in MONEY_RX.finditer(holding):
+        before = holding[max(0, m.start() - 90): m.start()]
+        after = holding[m.end(): m.end() + 40]
+        if not PAY_CUE.search(before) or NOT_PRINCIPAL.search(before[-45:] + " " + after[:25]):
+            continue
+        cur = m.group(1).upper()
+        cur = "USD" if cur in ("US$", "USD", "$") else "EUR" if cur in ("EUR", "€") else "UGX"
+        try:
+            amt = float(m.group(2).replace(",", ""))
+        except ValueError:
+            continue
+        if amt >= 1000:
+            out.append((cur, amt))
+    return out
+
+
 def quantum(text, facts, holding, out):
     claim_zone = facts or text[: len(text) // 3]
     claimed = [(c, a) for c, a, r in money(claim_zone) if r == "claimed"]
-    awarded = [(c, a) for c, a, r in money(holding) if r == "awarded"]
+    awarded = principal_awarded(holding)
     cur = None
     for lst in (awarded, claimed):
         if lst:
@@ -365,6 +410,7 @@ def code_case(c, text, legpats):
         ta = role_from_text(text, ROLE_I) or ta
     if tb in ("private employer", "contractor", "supplier", "consultant"):
         tb = role_from_text(text, ROLE_R) or tb
+    ta, tb = party_context(ta, tb, c.stream)
     proc, dec = proceeding(c.court, head, c.case_number)
     tail = text[int(len(text) * .75):]
     out = outcome(holding) or outcome(tail) or REG_OUTCOME.get(c.outcome_class)   # last resort: register summary
