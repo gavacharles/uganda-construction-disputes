@@ -124,6 +124,58 @@ def insights(a, cases):
     }
 
 
+def hex_layout(g):
+    """Assign each district one hexagon of a grid over Uganda, minimising total centroid-to-cell distance (Hungarian)."""
+    from scipy.optimize import linear_sum_assignment
+    gp = g.to_crs(32636)
+    cen = np.column_stack([gp.centroid.x, gp.centroid.y])
+    xmin, ymin = cen.min(axis=0)
+    xmax, ymax = cen.max(axis=0)
+    n = len(g)
+    for size in np.linspace(60000, 15000, 120):
+        cells = [(x + (size * 0.866 if r % 2 else 0), y) for r, y in enumerate(np.arange(ymin - size, ymax + size, size * 1.5))
+                 for x in np.arange(xmin - size, xmax + size, size * 1.732)]
+        cells = np.array(cells)
+        near = np.min(np.hypot(cells[:, None, 0] - cen[None, :, 0], cells[:, None, 1] - cen[None, :, 1]), axis=1) < size * 1.6
+        cells = cells[near]
+        if len(cells) >= n * 1.25:
+            break
+    cost = np.hypot(cen[:, None, 0] - cells[None, :, 0], cen[:, None, 1] - cells[None, :, 1])
+    ri, ci = linear_sum_assignment(cost)
+    xy = cells[ci]
+    xy = (xy - xy.min(axis=0)) / size  # in hexagon units
+    return {g.district.iloc[i]: {"x": round(float(xy[k, 0]), 3), "y": round(float(xy[k, 1]), 3)} for k, i in enumerate(ri)}, size
+
+
+def party_profiles(a):
+    from src.analysis.s6_networks import norm_party
+    rows = []
+    for r in a.itertuples():
+        sides = re.split(r"\s+(?:v|vs|versus)\.?\s+", str(r.parties or ""), maxsplit=1, flags=re.I)
+        for role, side, ptype in zip(["initiator", "respondent"], sides, [r.initiator_type, r.respondent_type]):
+            name = norm_party(side)
+            if len(name) > 2:
+                won = (r.outcome in MERITS[:2]) if role == "initiator" else (r.outcome in MERITS[2:])
+                rows.append({"party": name, "id": r.case_id, "role": role, "type": ptype, "year": int(r.year),
+                             "won": bool(won) if r.outcome in MERITS else None, "issues": [CAUSE_LABEL[k] for k in CAUSES if getattr(r, k) == "Y"],
+                             "opp": norm_party(sides[1 - ["initiator", "respondent"].index(role)]) if len(sides) > 1 else None})
+    df = pd.DataFrame(rows)
+    out = []
+    for name, d in df.groupby("party"):
+        if d.id.nunique() < 3:
+            continue
+        dec = d.drop_duplicates("id")
+        iss = pd.Series([i for l in dec.issues for i in l]).value_counts()
+        w = dec.won.dropna()
+        out.append({"name": name, "slug": re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-"),
+                    "type": dec.type.mode().iat[0] if dec.type.notna().any() else None, "n": int(len(dec)),
+                    "asInitiator": int((dec.role == "initiator").sum()), "winRate": round(100 * w.mean(), 0) if len(w) else None,
+                    "decided": int(len(w)), "first": int(dec.year.min()), "last": int(dec.year.max()),
+                    "issues": {k: int(v) for k, v in iss.items()}, "cases": [{"id": r.id, "role": r.role, "won": r.won} for r in dec.itertuples()],
+                    "opponents": dec.opp.dropna().value_counts().head(8).to_dict()})
+    return sorted(out, key=lambda x: -x["n"])
+
+
 def main():
     DEST.mkdir(parents=True, exist_ok=True)
     a = pd.read_parquet(PROCESSED / "analysis_cases.parquet")
@@ -166,6 +218,44 @@ def main():
     (DEST / "legislation.json").write_text(json.dumps(legs, ensure_ascii=False, separators=(",", ":")))
     (DEST / "cases.json").write_text(json.dumps(rows, ensure_ascii=False, separators=(",", ":")))
     ins = insights(a, pd.DataFrame(rows))
+    # map extensions: honeycomb layout, district-year counts, located share (uncertainty)
+    import geopandas as gpd
+    g = gpd.read_file(ROOT / "data/external/procurement-risk-uganda/docs/data/districts.geojson")
+    g["district"] = g.district.str.strip()
+    hexes, _ = hex_layout(g)
+    loc = pd.read_parquet(PROCESSED / "case_locations.parquet")
+    al = a.merge(loc, on="case_id", how="left")
+    con = al[al.stream.isin(["construction", "both"])]
+    dy = con.dropna(subset=["district"]).groupby(["district", "year"]).agg(n=("case_id", "size"), state=("state_party", lambda x: int((x == "Y").sum())))
+    ins["hex"] = [{"district": d, "region": r, "population": int(p), **hexes[d]} for d, r, p in zip(g.district, g.region, g.population)]
+    ins["districtYear"] = [{"d": d, "y": int(y), "n": int(r.n), "s": int(r.state)} for (d, y), r in dy.iterrows()]
+    ins["districtIssues"] = {d: pd.Series([CAUSE_LABEL[k] for _, r in grp.iterrows() for k in CAUSES if r[k] == "Y"]).value_counts().head(3).to_dict()
+                             for d, grp in con.dropna(subset=["district"]).groupby("district")}
+    ins["districtCases"] = {d: list(grp.sort_values("date_decided", ascending=False).case_id) for d, grp in con.dropna(subset=["district"]).groupby("district")}
+    ins["located"] = [{"year": int(y), "located": int(gr.district.notna().sum()), "total": int(len(gr))} for y, gr in con.groupby("year")]
+    # court compasses (issue shares by forum, construction-related)
+    con2 = a[a.stream.isin(["construction", "both"])].assign(cg=lambda x: x.court.map(court_group))
+    keep = [c for c in CAUSES if (con2[c] == "Y").sum() >= 15]
+    ins["compass"] = {"issues": [CAUSE_LABEL[c] for c in keep],
+                      "courts": [{"court": cg, "n": int(len(d)), "shares": [round(100 * (d[c] == "Y").mean(), 1) for c in keep]}
+                                 for cg, d in con2.groupby("cg") if len(d) >= 20]}
+    # profiler benchmarks by issue: duration (suits/appeals) and recovery (aggregates only)
+    yf = pd.to_numeric(con2.case_number.str.extract(r"(?i)of\s*((?:19|20)\d{2})")[0], errors="coerce")
+    con2["yrs"] = (con2.year - yf).where(lambda x: x.between(0, 25) & con2.proceeding.isin(["suit", "appeal"]))
+    okq = con2.quantum_claimed.gt(0) & con2.quantum_awarded.notna() & con2.outcome.isin(MERITS[:3])
+    con2["rec"] = (con2.quantum_awarded / con2.quantum_claimed).clip(0, 1).where(okq)
+    prof = {}
+    for c in CAUSES:
+        d = con2[con2[c] == "Y"]
+        prof[CAUSE_LABEL[c]] = {"dur": nn(round(d.yrs.median(), 1)) if d.yrs.notna().sum() >= 8 else None, "durN": int(d.yrs.notna().sum()),
+                                "rec": nn(round(100 * d.rec.mean(), 0)) if d.rec.notna().sum() >= 8 else None, "recN": int(d.rec.notna().sum())}
+    ins["profile"] = {"issue": prof, "all": {"dur": nn(round(con2.yrs.median(), 1)), "rec": nn(round(100 * con2.rec.mean(), 0))}}
+    # spillover (Stage 12)
+    sp = csv("12_spillover", "t1_model")
+    ins["spillover"] = {"model": rec(sp.rename(columns={sp.columns[0]: "term"})) if len(sp) else [],
+                        "moran": rec(csv("12_spillover", "t2_moran_by_year")) if len(csv("12_spillover", "t2_moran_by_year")) else []}
+    parties = party_profiles(a)
+    (DEST / "parties.json").write_text(json.dumps(parties, ensure_ascii=False, separators=(",", ":")))
     (DEST / "insights.json").write_text(json.dumps(ins, ensure_ascii=False, separators=(",", ":"), default=nn))
 
     # district boundaries, coordinates rounded to ~100 m
