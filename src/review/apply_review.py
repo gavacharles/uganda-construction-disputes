@@ -16,9 +16,14 @@ SHEETS = {"to_confirm": ["case_id", "citation", "decision", "note"],
           "legislation": ["leg_id", "title", "decision", "note"]}
 
 
+KEYS = {"to_confirm": ["case_id"], "duplicates": ["added_case", "register_case"],
+        "ocr_low_conf": ["file", "page"], "legislation": ["leg_id"]}
+
+
 def workbook():
-    d = OUT / "review"
-    return next(p for p in [d / "review_queue-filled.xlsx", d / "review_queue.xlsx"] if p.exists())
+    """Most recently saved review workbook (review_queue*.xlsx, ignoring Excel lock files)."""
+    return max((p for p in (OUT / "review").glob("review_queue*.xlsx") if not p.name.startswith("~$")),
+               key=lambda p: p.stat().st_mtime)
 
 
 def load(name):
@@ -67,17 +72,17 @@ def apply_legislation(leg):
 
 
 def main(reimport=False):
-    """CSVs are the record once written (later corrections are made there); --reimport overwrites them."""
+    """Append decisions for items not yet in the CSVs; existing rows (and corrections) are kept. --reimport rebuilds."""
     MANUAL.mkdir(parents=True, exist_ok=True)
     wb = workbook()
     for name, cols in SHEETS.items():
-        if (MANUAL / f"{name}.csv").exists() and not reimport:
-            print(f"{name}: kept existing {name}.csv (use --reimport to overwrite from {wb.name})")
-            continue
         d = pd.read_excel(wb, sheet_name=name).rename(columns={" ": "leg_id"})
-        missing = d.decision.isna().sum()
-        d[cols].to_csv(MANUAL / f"{name}.csv", index=False)
-        print(f"{name}: {len(d)} rows, {d.decision.value_counts().to_dict()}" + (f", {missing} blank" if missing else ""))
+        d = d.loc[d.decision.notna(), cols]
+        old = pd.DataFrame(columns=cols) if reimport else load(name)
+        key = lambda x: x[KEYS[name]].astype(str).agg("|".join, axis=1)
+        new = d[~key(d).isin(key(old))] if len(old) else d     # existing decisions (and corrections) are kept
+        pd.concat([old, new], ignore_index=True).to_csv(MANUAL / f"{name}.csv", index=False)
+        print(f"{name}: {len(new)} new decisions {new.decision.value_counts().to_dict()}; {len(old) + len(new)} total")
 
     leg = apply_legislation(pd.read_parquet(INTERIM / "legislation.parquet"))
     leg.to_parquet(INTERIM / "legislation.parquet", index=False)

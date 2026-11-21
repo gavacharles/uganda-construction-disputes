@@ -52,6 +52,26 @@ def case_id(cit):
     return f"{m.group(1)}_{m.group(2)}_{m.group(3)}" if m else None
 
 
+def alias_ids(cit):
+    """All case_ids a citation names: '[2026] UGCommC 78 / [2026] UGCommC 85' and '[2026] UGPPDPAAT 15 / 16'."""
+    first = case_id(cit)
+    out = [first] if first else []
+    for part in str(cit or "").split(" / ")[1:]:
+        part = part.strip()
+        if re.fullmatch(r"\d+", part) and first:      # shorthand: same year and court
+            out.append(first.rsplit("_", 1)[0] + "_" + part)
+        elif case_id(part):
+            out.append(case_id(part))
+    return out
+
+
+def case_aliases(cases):
+    """alias_id -> case_id for every case (each case maps to itself); used to join PDFs/texts to cases."""
+    rows = [(a, c) for c, cit in zip(cases.case_id, cases.citation) for a in alias_ids(cit)]
+    rows += [(c, c) for c in cases.case_id]
+    return dict(rows)
+
+
 def load_cases():
     frames = []
     for period in PERIODS:

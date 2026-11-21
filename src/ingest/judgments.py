@@ -13,6 +13,7 @@ import pdfplumber
 from pdf2image import pdfinfo_from_path
 
 from src.config import DOWNLOADS, INTERIM, JUDGMENTS, LOGS, PROCESSED
+from src.ingest.registers import case_aliases
 
 SRC = DOWNLOADS
 DEST = JUDGMENTS
@@ -66,12 +67,14 @@ def main():
 
     cases = pd.read_parquet(PROCESSED / "cases.parquet")
     gold = pd.read_excel(SRC / "gold_download_list.xlsx")
-    cases["has_pdf"] = cases.case_id.isin(f.case_id)
+    alias = case_aliases(cases)                      # '78 / 85' citations: PDF may be filed under either number
+    with_pdf = {alias[i] for i in f.case_id if i in alias}
+    cases["has_pdf"] = cases.case_id.isin(with_pdf)
     cov = cases.groupby(["period", "stream", "source"]).agg(cases=("case_id", "size"), with_pdf=("has_pdf", "sum"))
     cov["pct"] = (100 * cov.with_pdf / cov.cases).round(1)
     cov.to_csv(LOGS / "judgments_coverage.csv")
 
-    extra = f[~f.case_id.isin(cases.case_id)]
+    extra = f[~f.case_id.isin(alias)]
     missing = cases[~cases.has_pdf & cases.source.eq("register")]
     missing[["case_id", "citation", "parties", "court", "stream", "period", "ulii_link"]].to_csv(
         LOGS / "judgments_missing.csv", index=False)

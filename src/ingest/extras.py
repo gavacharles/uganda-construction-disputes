@@ -8,9 +8,9 @@ import re
 
 import pandas as pd
 
-from src.config import INTERIM, JUDGMENTS, LOGS, PROCESSED
+from src.config import INTERIM, JUDGMENTS, LOGS
 from src.ingest.ocr_cases import code
-from src.ingest.registers import case_id, norm_citation
+from src.ingest.registers import case_aliases, norm_citation
 
 COURT = {"UGSC": "Supreme Court", "UGCA": "Court of Appeal", "UGCC": "Constitutional Court",
          "UGCommC": "High Court (Commercial Division)", "UGHCCD": "High Court (Civil Division)",
@@ -29,6 +29,68 @@ def tidy(s):
     return s.title() if s.isupper() else s
 
 
+# party block parser: lines above / below the VERSUS line, so names wrapped over two lines are kept whole
+ROLE = r"(?:\w{0,2}(?:laintiff|pplicant|ppellant|laimant|etitioner|efendant|espondent|bjector|ntervener))S?"
+VS = re.compile(r"(?i)^\W*(?:versus|vs\.?|v\.?|and)\W*$")
+STOP_A = re.compile(r"(?i)\bno\.?\s*\d|\bof\s+(?:19|20)\d{2}|arising|coram|before|republic|\bcourt\b|division|registry|"
+                    r"at kampala|^\W*between\W*$|in the matter|judicature|^\W*\(|reference|\bcause\b|application|appeal|suit\b|holden")
+STOP_B = re.compile(r"(?i)before|judgment|ruling|coram|\bhon\b|honourable|introduction|background|^\W*\(|arising|"
+                    r"\bjustice\b|representation|brief facts|counsel|^\W*\d+\.\s+\w+ (?:is|was|filed)")
+
+
+def _clean(line):
+    s = re.sub(rf"(?i)\b{ROLE}\b", " ", line)
+    s = re.sub(r"(?i)\bH\.?C\.?T[\w\-/.]*\d{4}\b|:\s*[A-Za-z]?\s*$", " ", s)   # e-filing case numbers, stray ': I'
+    s = re.sub(r"^\s*\d{1,3}\s+(?=[A-Z]|\d\s*[.)])", "", s)          # margin line numbers
+    s = re.sub(r"(?:\s*[:;.…_\-=]){2,}|[}{|\[\]=•]|\s\)", " ", s)     # dot/colon leaders, braces, OCR junk
+    s = re.sub(r"(?i)\b\d(?:st|nd|rd|th)\b|/\s*judgment (?:debtor|creditor)", " ", s)
+    s = re.sub(r"(?:\s+(?:\d{1,3}|[a-z]))+\s*$", "", s)                  # trailing margin numbers / stray letters
+    return re.sub(r"\s+", " ", s).strip(" :;.,-")
+
+
+def _namey(s):
+    letters = re.sub(r"[^A-Za-z]", "", s)
+    return len(letters) >= 2 and sum(c.isupper() for c in letters) / len(letters) > 0.6
+
+
+def _side(lines):
+    """Join wrapped lines; numbered parties -> first + 'and Another/Others'."""
+    parts = [tidy(p) for p in re.split(r"(?:^|\s)\d\s*[.)]\s*", " ".join(lines))]
+    parts = [p for p in parts if len(p) > 3]
+    if not parts:
+        return None
+    return parts[0] + ("" if len(parts) == 1 else " and Another" if len(parts) == 2 else " and Others")
+
+
+def parse_parties(text):
+    lines = text[:6000].split("\n")[:80]
+    v = next((i for i, l in enumerate(lines) if VS.match(l) and not re.match(r"(?i)^\W*and\W*$", l)), None)
+    if v is None:
+        v = next((i for i, l in enumerate(lines) if re.match(r"(?i)^\W*and\W*$", l)), None)
+    if v is None:
+        return None
+    a, b = [], []
+    for l in reversed(lines[max(0, v - 7):v]):
+        c = _clean(l)
+        if not c:
+            if a:
+                break
+            continue
+        if STOP_A.search(l) or not _namey(c):
+            break
+        a.insert(0, c)
+    for l in lines[v + 1:v + 10]:
+        c = _clean(l)
+        if STOP_B.search(l) or (c and not _namey(c)):
+            break
+        if c:
+            b.append(c)
+        if b and re.search(rf"(?i)\b{ROLE}\b", l):
+            break
+    A, B = (_side(a), _side(b)) if a and b else (None, None)
+    return f"{A} v {B}" if A and B else None
+
+
 def parse_head(text):
     head = text[:6000]
     num = re.search(r"(?i)((?:civil|misc\w*|miscellaneous|arbitration|company|labour|tax)[^\n]{0,40}?"
@@ -36,7 +98,7 @@ def parse_head(text):
     a = re.search(rf"\n\s*{NAME}\s*[:.…_\-\s]*(?:\n\s*)?(?:\d+\w*\s*)?{ROLE_A}", head)
     b = re.search(rf"\n\s*{NAME}\s*[:.…_\-\s]*(?:\n\s*)?(?:\d+\w*\s*)?{ROLE_B}", head)
     judge = re.search(r"(?i)before\s*[:\-]?\s*((?:hon\.?|the hon\w*|his lordship|her lordship|lady justice|justice)[^\n]{3,80})", head)
-    parties = f"{tidy(a.group(1))} v {tidy(b.group(1))}" if a and b else None
+    parties = parse_parties(text) or (f"{tidy(a.group(1))} v {tidy(b.group(1))}" if a and b else None)
     return (num.group(1).strip() if num else None, parties, judge.group(1).strip() if judge else None)
 
 
@@ -44,8 +106,8 @@ def main():
     ix = pd.concat([pd.read_csv(p) for p in JUDGMENTS.glob("*/_index.csv")])
     ix = ix[ix.status.eq("downloaded")].drop_duplicates("file")
     ix["case_id"] = ix.file.str.replace(".pdf", "", regex=False)
-    cases = pd.read_parquet(PROCESSED / "cases.parquet")
-    second = {case_id(c.split(" / ")[1]) for c in cases.citation if " / " in c}
+    cases = pd.read_parquet(INTERIM / "registers_cases.parquet")  # registers only: cases.parquet already holds extras
+    second = set(case_aliases(cases))
     texts = pd.read_parquet(INTERIM / "texts.parquet")
     ex = texts[~texts.case_id.isin(cases.case_id) & ~texts.case_id.isin(second)].merge(
         ix[["case_id", "citation", "date", "ulii_link"]], on="case_id", how="left")
