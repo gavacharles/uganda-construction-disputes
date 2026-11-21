@@ -5,9 +5,6 @@
  "lastDecision": "2026-11-16",
  "cases": 697,
  "coding": "v1 (rule-based, validated against a provisional AI-coded reference set)",
- "streams": {
-  "construction": 341,
-  "arbitration": 245,
-  "both": 111
- }
+ "licence": "CC BY 4.0",
+ "withSummary": 482
 }
