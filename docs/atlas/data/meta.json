@@ -1,0 +1,13 @@
+{
+ "name": "Uganda Construction & Arbitration Law Atlas",
+ "generated": "2026-11-22",
+ "coverage": "2015–2026",
+ "lastDecision": "2026-11-16",
+ "cases": 697,
+ "coding": "v1 (rule-based, validated against a provisional AI-coded reference set)",
+ "streams": {
+  "construction": 341,
+  "arbitration": 245,
+  "both": 111
+ }
+}

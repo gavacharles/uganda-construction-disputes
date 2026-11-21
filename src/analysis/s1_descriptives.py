@@ -18,9 +18,9 @@ def share_table(a, col, order=None):
 
 
 def court_group(c):
-    for k, rx in [("Supreme Court", "Supreme"), ("Court of Appeal", "Appeal|Constitutional"),
-                  ("High Court (Commercial)", "Commercial"), ("High Court (other divisions)", "High Court"),
-                  ("PPDA Appeals Tribunal", "PPDA"), ("CADER", "CADER")]:
+    for k, rx in [("Supreme Court", "Supreme"), ("PPDA Appeals Tribunal", "PPDA"),  # before "Appeal": 'Appeals Tribunal'
+                  ("Court of Appeal", "Court of Appeal|Constitutional"), ("High Court (Commercial)", "Commercial"),
+                  ("High Court (other divisions)", "High Court"), ("CADER", "CADER")]:
         if pd.notna(c) and pd.Series([c]).str.contains(rx).iloc[0]:
             return k
     return "Other tribunals"

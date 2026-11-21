@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Uganda Construction &amp; Arbitration Law Atlas</title>
+<meta name="description" content="Searchable archive of Ugandan construction and arbitration decisions, 2015–2026: issues, outcomes, legislation and citations, with links to the full judgments on ULII.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=Inter:wght@400;500;600&display=swap">
+<style>
+:root{
+  --bg:#fbfbf9; --panel:#ffffff; --fg:#1b1b19; --muted:#5d5c57; --line:#e3e2dc; --soft:#f3f2ee;
+  --accent:#2a78d6; --accent-ink:#ffffff;
+  --c-con:#2a78d6; --c-both:#d55181; --c-arb:#eb6834;
+  --o-win:#1a9e6f; --o-part:#b97d00; --o-ref:#6250d6; --o-loss:#4b4a46;
+  --serif:"Source Serif 4", Georgia, "Times New Roman", serif;
+  --sans:Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#161615; --panel:#1f1f1d; --fg:#eeede8; --muted:#b0afa6; --line:#34332f; --soft:#262624;
+    --accent:#3987e5; --c-con:#3987e5; --o-win:#3cc28f; --o-part:#e0a623; --o-ref:#8b7cf0; --o-loss:#a3a199; color-scheme:dark; }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.55 var(--sans)}
+a{color:var(--accent)}
+.wrap{max-width:1120px;margin:0 auto;padding:32px max(16px,env(safe-area-inset-right,0px)) 64px max(16px,env(safe-area-inset-left,0px))}
+header .eyebrow{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+h1{font:600 clamp(26px,4vw,38px)/1.15 var(--serif);margin:0 0 10px;text-wrap:balance}
+h2{font:600 21px/1.25 var(--serif);margin:0 0 8px}
+h3{font:600 13px var(--sans);letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin:22px 0 8px}
+.lede{font-size:17px;max-width:72ch;margin:0;color:var(--fg)}
+.lede b{font-variant-numeric:tabular-nums}
+nav.tabs{display:flex;gap:4px;margin:24px 0 18px;border-bottom:1px solid var(--line)}
+nav.tabs a{font:500 14px var(--sans);color:var(--muted);text-decoration:none;padding:10px 14px;border-bottom:2px solid transparent;margin-bottom:-1px}
+nav.tabs a[aria-current="page"]{color:var(--fg);border-color:var(--accent)}
+nav.tabs .ext{margin-left:auto}
+.layout{display:grid;grid-template-columns:260px 1fr;gap:24px;align-items:start}
+@media (max-width:820px){.layout{grid-template-columns:1fr}}
+.filters{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;position:sticky;top:12px}
+@media (max-width:820px){.filters{position:static}}
+.filters label{display:block;font:500 12px var(--sans);color:var(--muted);margin:12px 0 4px}
+.filters label:first-child{margin-top:0}
+input[type=search],select{width:100%;font:14px var(--sans);padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--fg)}
+input:focus-visible,select:focus-visible,button:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.check{display:flex;gap:8px;align-items:center;margin-top:12px;font-size:14px;color:var(--fg)}
+.check input{width:16px;height:16px;accent-color:var(--accent)}
+button{font:500 13px var(--sans);border:1px solid var(--line);background:var(--panel);color:var(--fg);border-radius:8px;padding:8px 12px;cursor:pointer}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.reset{margin-top:14px;width:100%}
+.bar{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px}
+.count{color:var(--muted);font-size:14px}.count b{color:var(--fg);font-variant-numeric:tabular-nums}
+.bar select{width:auto}
+ol.results{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+.case{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.case h4{margin:0 0 2px;font:600 16px/1.35 var(--serif)}
+.case h4 a{color:var(--fg);text-decoration:none}.case h4 a:hover{text-decoration:underline}
+.meta{color:var(--muted);font-size:13px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.chip{font-size:12px;line-height:1;padding:5px 8px;border-radius:999px;background:var(--soft);color:var(--fg);border:1px solid var(--line)}
+.chip.s-construction{border-color:var(--c-con);color:var(--c-con)}
+.chip.s-both{border-color:var(--c-both);color:var(--c-both)}
+.chip.s-arbitration{border-color:var(--c-arb);color:var(--c-arb)}
+.out{font-weight:500}
+.out.win{color:var(--o-win)}.out.part{color:var(--o-part)}.out.ref{color:var(--o-ref)}.out.loss{color:var(--o-loss)}
+.more{display:block;margin:14px auto 0}
+.empty{padding:28px;text-align:center;color:var(--muted);background:var(--panel);border:1px dashed var(--line);border-radius:10px}
+/* case drawer */
+.scrim{position:fixed;inset:0;background:rgba(0,0,0,.35);opacity:0;pointer-events:none;transition:opacity .15s}
+.scrim.on{opacity:1;pointer-events:auto}
+aside.drawer{position:fixed;top:0;right:0;height:100%;width:min(640px,100%);background:var(--bg);border-left:1px solid var(--line);
+  transform:translateX(100%);transition:transform .2s;overflow-y:auto;z-index:10;padding:22px max(18px,env(safe-area-inset-right,0px)) 40px 22px}
+aside.drawer.on{transform:none}
+.drawer .close{float:right}
+.drawer h2{margin-top:6px;clear:both}
+.kv{display:grid;grid-template-columns:150px 1fr;gap:6px 12px;font-size:14px}
+.kv dt{color:var(--muted)}.kv dd{margin:0}
+@media (max-width:520px){.kv{grid-template-columns:1fr}.kv dt{margin-top:6px}}
+.cta{display:inline-block;margin:14px 0 4px;text-decoration:none}
+.note{font-size:13px;color:var(--muted)}
+.drawer ul{margin:0;padding-left:18px}.drawer li{margin:3px 0}
+.digest{background:var(--soft);border-radius:8px;padding:12px 14px;color:var(--muted);font-size:14px}
+/* legislation */
+table{width:100%;border-collapse:collapse;font-size:14px;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font:600 12px var(--sans);color:var(--muted);background:var(--soft)}
+td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
+.tblwrap{overflow-x:auto}
+.prose{max-width:72ch}.prose p,.prose li{margin:0 0 10px}
+footer{margin-top:48px;border-top:1px solid var(--line);padding-top:14px;color:var(--muted);font-size:13px}
+[hidden]{display:none!important}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Uganda · Courts and tribunals · 2015–2026</div>
+    <h1>Uganda Construction &amp; Arbitration Law Atlas</h1>
+    <p class="lede" id="lede">A searchable archive of construction and arbitration decisions from Uganda's courts and tribunals, with the issues, outcomes, legislation and citations of each case. Full judgments open on ULII.</p>
+  </header>
+
+  <nav class="tabs" aria-label="Sections">
+    <a href="#/cases" data-tab="cases">Cases</a>
+    <a href="#/legislation" data-tab="legislation">Legislation</a>
+    <a href="#/about" data-tab="about">About</a>
+    <a class="ext" href="../">Trends explorer ↗</a>
+  </nav>
+
+  <main>
+    <section id="tab-cases">
+      <div class="layout">
+        <form class="filters" id="filters" role="search" aria-label="Filter decisions" onsubmit="return false">
+          <label for="q">Search</label>
+          <input type="search" id="q" placeholder="Party, citation, judge…" autocomplete="off">
+          <label for="f-stream">Stream</label>
+          <select id="f-stream"><option value="">All</option><option value="construction">Construction</option>
+            <option value="both">Construction via arbitration</option><option value="arbitration">Arbitration</option></select>
+          <label for="f-cg">Court or tribunal</label><select id="f-cg"><option value="">All</option></select>
+          <label>Year</label>
+          <div class="row2"><select id="f-y0" aria-label="From year"></select><select id="f-y1" aria-label="To year"></select></div>
+          <label for="f-issue">Issue</label><select id="f-issue"><option value="">Any</option></select>
+          <label for="f-out">Outcome (machine-coded)</label><select id="f-out"><option value="">Any</option></select>
+          <label for="f-arb">Arbitration application</label><select id="f-arb"><option value="">Any</option></select>
+          <label for="f-leg">Legislation cited</label><select id="f-leg"><option value="">Any</option></select>
+          <label class="check"><input type="checkbox" id="f-state"> A state body is a party</label>
+          <label class="check"><input type="checkbox" id="f-cited"> Cited by later decisions</label>
+          <button type="button" class="reset" id="reset">Clear filters</button>
+        </form>
+        <div>
+          <div class="bar">
+            <div class="count" id="count" aria-live="polite"></div>
+            <label class="note" for="sort" hidden>Sort</label>
+            <select id="sort" aria-label="Sort results">
+              <option value="new">Newest first</option><option value="old">Oldest first</option><option value="cited">Most cited</option>
+            </select>
+          </div>
+          <ol class="results" id="results"></ol>
+          <button type="button" class="more" id="more" hidden>Show more</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="tab-legislation" hidden>
+      <h2>Construction and arbitration legislation, 2015–2026</h2>
+      <p class="note">Acts, statutory instruments and rules affecting construction and arbitration, newest first. "Cited in" counts the decisions in the archive that cite the enactment by its title and year; select a number to see them.</p>
+      <div class="tblwrap"><table id="legtbl"><thead><tr><th>Enactment</th><th>Area</th><th>Effective</th><th>Status</th><th>Cited in</th></tr></thead><tbody></tbody></table></div>
+    </section>
+
+    <section id="tab-about" hidden>
+      <div class="prose">
+        <h2>About the Atlas</h2>
+        <p>The Atlas covers construction- and arbitration-related decisions of Ugandan courts and tribunals published on the <a href="https://ulii.org">Uganda Legal Information Institute (ULII)</a> from 2015 to 2026: the Supreme Court, the Court of Appeal, all divisions of the High Court, the PPDA Appeals Tribunal, CADER and other tribunals. It includes decisions in which construction parties face related risks, such as tax, banking and insolvency disputes.</p>
+        <p>Each decision is classified by stream (construction; construction disputes that reached court through an arbitration application; other arbitration), type of proceeding, the dispute issues in play, the outcome for the party that brought the proceeding, and, for arbitration matters, the application type and grounds raised. Citations of legislation and of other decisions in the archive are extracted from the judgments.</p>
+        <h3>How the data were made</h3>
+        <p>Decisions were collected from ULII registers and full-text judgments, screened for relevance, and de-duplicated, with every exclusion logged. Classifications are produced by transparent, rule-based coding (version 1), validated field by field against a 150-decision reference set that is currently AI-coded and is being verified by hand. Agreement is high for stream, court, proceeding and state involvement, moderate for outcome, and lower for some issues; treat classifications as a research guide and always read the judgment.</p>
+        <h3>What the Atlas does not do</h3>
+        <ul>
+          <li>It does not host judgments. Every case links to the full text on ULII, which remains the authoritative source.</li>
+          <li>It does not reproduce ULII's summaries or headnotes.</li>
+          <li>It does not publish amounts claimed or awarded case by case until they have been verified.</li>
+          <li>It is not legal advice.</li>
+        </ul>
+        <h3>Digests</h3>
+        <p>Short digests of leading decisions, written by the author from the judgments, will be added progressively alongside the forthcoming book <i>Construction and Arbitration Law in Uganda: Cases, Evidence and Reform, 2015–2026</i>.</p>
+        <h3>Author and contact</h3>
+        <p>Compiled by Charles Gava as part of doctoral research on construction disputes and contract reform in Uganda. Corrections and suggestions are welcome through the project's <a href="https://github.com/gavacharles/uganda-construction-disputes">GitHub repository</a>.</p>
+        <p class="note" id="about-meta"></p>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <span id="foot"></span> · Judgments: <a href="https://ulii.org">ULII</a> · Not legal advice.
+  </footer>
+</div>
+
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="d-title" tabindex="-1">
+  <button type="button" class="close" id="close" aria-label="Close case">Close ✕</button>
+  <div id="d-body"></div>
+</aside>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const STREAM = {construction:"Construction", both:"Construction via arbitration", arbitration:"Arbitration"};
+const OUTC = {"initiator succeeded":["win","Initiator succeeded"],"partly succeeded":["part","Partly succeeded"],
+  "initiator failed":["loss","Initiator failed"],"struck out (procedural)":["loss","Struck out (procedural)"],
+  "referred to arbitration":["ref","Referred to arbitration"],"remitted or retrial":["part","Remitted or retrial"],"consent":["part","Consent"]};
+const cap = (s) => s ? s[0].toUpperCase() + s.slice(1) : s;
+const fmtDate = (d) => d ? new Date(d + "T00:00:00").toLocaleDateString("en-GB", {day:"numeric", month:"short", year:"numeric"}) : "";
+let CASES = [], BYID = {}, LEG = [], LEGBY = {}, shown = 40, list = [];
+
+async function load() {
+  const [c, l, m] = await Promise.all(["cases", "legislation", "meta"].map((f) => fetch(`data/${f}.json`).then((r) => r.json())));
+  CASES = c; LEG = l; CASES.forEach((x) => BYID[x.id] = x); LEG.forEach((x) => LEGBY[x.id] = x);
+  const n = (k) => CASES.filter((x) => x.stream === k).length;
+  $("#lede").innerHTML = `A searchable archive of <b>${CASES.length}</b> construction and arbitration decisions from Uganda's courts and tribunals (${m.coverage}): <b>${n("construction")}</b> construction disputes, <b>${n("both")}</b> construction disputes that reached court through arbitration, and <b>${n("arbitration")}</b> other arbitration matters. Full judgments open on ULII.`;
+  $("#foot").textContent = `${m.name} · decisions to ${fmtDate(m.lastDecision)} · updated ${fmtDate(m.generated)}`;
+  $("#about-meta").textContent = `Data version: coding ${m.coding}; generated ${m.generated}; ${m.cases} decisions; latest decision ${m.lastDecision}.`;
+  fillFilters(); bind(); route();
+}
+
+function opts(sel, values, label = (v) => v) {
+  sel.insertAdjacentHTML("beforeend", values.map((v) => `<option value="${esc(v)}">${esc(label(v))}</option>`).join(""));
+}
+function fillFilters() {
+  const uniq = (f) => [...new Set(CASES.flatMap(f))].filter(Boolean);
+  const order = ["Supreme Court","Court of Appeal","High Court (Commercial)","High Court (other divisions)","PPDA Appeals Tribunal","CADER","Other tribunals"];
+  opts($("#f-cg"), order.filter((o) => uniq((x) => [x.cg]).includes(o)));
+  const years = uniq((x) => [x.year]).sort();
+  opts($("#f-y0"), years); opts($("#f-y1"), years); $("#f-y0").value = String(years[0]); $("#f-y1").value = String(years.at(-1));
+  const issueCount = {}; CASES.forEach((x) => x.issues.forEach((i) => issueCount[i] = (issueCount[i] || 0) + 1));
+  opts($("#f-issue"), Object.keys(issueCount).sort((a, b) => issueCount[b] - issueCount[a]), (v) => `${v} (${issueCount[v]})`);
+  opts($("#f-out"), Object.keys(OUTC), (v) => OUTC[v][1]);
+  opts($("#f-arb"), uniq((x) => [x.arb]).sort(), cap);
+  opts($("#f-leg"), LEG.filter((l) => l.citedIn > 0).map((l) => l.id), (v) => LEGBY[v].title);
+}
+
+const F = () => ({q: $("#q").value.trim().toLowerCase(), stream: $("#f-stream").value, cg: $("#f-cg").value,
+  y0: +$("#f-y0").value, y1: +$("#f-y1").value, issue: $("#f-issue").value, out: $("#f-out").value,
+  arb: $("#f-arb").value, leg: $("#f-leg").value, state: $("#f-state").checked, cited: $("#f-cited").checked, sort: $("#sort").value});
+
+function apply(resetPage = true) {
+  const f = F();
+  const terms = f.q.split(/\s+/).filter(Boolean);
+  list = CASES.filter((x) => {
+    if (f.stream && x.stream !== f.stream) return false;
+    if (f.cg && x.cg !== f.cg) return false;
+    if (x.year < f.y0 || x.year > f.y1) return false;
+    if (f.issue && !x.issues.includes(f.issue)) return false;
+    if (f.out && x.outcome !== f.out) return false;
+    if (f.arb && x.arb !== f.arb) return false;
+    if (f.leg && !x.leg.includes(f.leg)) return false;
+    if (f.state && !x.state) return false;
+    if (f.cited && !x.citedBy.length) return false;
+    if (terms.length) {
+      const hay = `${x.cit} ${x.parties} ${x.judge} ${x.court} ${x.issues.join(" ")} ${x.statutes.join(" ")}`.toLowerCase();
+      if (!terms.every((t) => hay.includes(t))) return false;
+    }
+    return true;
+  });
+  if (f.sort === "old") list.sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+  else if (f.sort === "cited") list.sort((a, b) => b.citedBy.length - a.citedBy.length || (b.date || "").localeCompare(a.date || ""));
+  else list.sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+  if (resetPage) shown = 40;
+  render();
+}
+
+function outcomeHtml(o) {
+  if (!o) return "";
+  const [cls, lab] = OUTC[o] || ["", o];
+  return `<span class="out ${cls}" title="Machine-coded outcome (v1): verify against the judgment">${esc(lab)}</span>`;
+}
+function render() {
+  $("#count").innerHTML = `<b>${list.length}</b> of ${CASES.length} decisions`;
+  const items = list.slice(0, shown).map((x) => `
+    <li class="case">
+      <h4><a href="#/case/${x.id}">${esc(x.parties || x.cit)}</a></h4>
+      <div class="meta">${esc(x.cit)} · ${esc(x.court)} · ${fmtDate(x.date)}${x.outcome ? " · " + outcomeHtml(x.outcome) : ""}</div>
+      <div class="chips"><span class="chip s-${x.stream}">${STREAM[x.stream]}</span>
+        ${x.arb ? `<span class="chip">${esc(cap(x.arb))}</span>` : ""}
+        ${x.issues.slice(0, 4).map((i) => `<span class="chip">${esc(i)}</span>`).join("")}
+        ${x.citedBy.length ? `<span class="chip">Cited by ${x.citedBy.length}</span>` : ""}</div>
+    </li>`).join("");
+  $("#results").innerHTML = items || `<li class="empty">No decisions match these filters.</li>`;
+  $("#more").hidden = shown >= list.length;
+  $("#more").textContent = `Show more (${list.length - shown} left)`;
+}
+
+function caseLink(id) {
+  const x = BYID[id];
+  return x ? `<a href="#/case/${id}">${esc(x.cit)}</a> <span class="note">${esc(x.parties || "")}</span>` : esc(id);
+}
+function openCase(id) {
+  const x = BYID[id];
+  if (!x) return;
+  const legs = x.leg.map((l) => LEGBY[l]).filter(Boolean);
+  $("#d-body").innerHTML = `
+    <div class="note">${esc(x.cit)}</div>
+    <h2 id="d-title">${esc(x.parties || x.cit)}</h2>
+    <dl class="kv">
+      <dt>Court or tribunal</dt><dd>${esc(x.court)}</dd>
+      <dt>Date of decision</dt><dd>${fmtDate(x.date)}</dd>
+      ${x.judge ? `<dt>Judge or panel</dt><dd>${esc(x.judge)}</dd>` : ""}
+      <dt>Stream</dt><dd>${STREAM[x.stream]}</dd>
+      ${x.proc ? `<dt>Proceeding</dt><dd>${esc(cap(x.proc))}</dd>` : ""}
+      ${x.state ? `<dt>State party</dt><dd>Yes</dd>` : ""}
+      ${x.arb ? `<dt>Arbitration application</dt><dd>${esc(cap(x.arb))}</dd>` : ""}
+      ${x.grounds.length ? `<dt>Grounds raised</dt><dd>${x.grounds.map(esc).join(", ")}</dd>` : ""}
+      ${x.outcome ? `<dt>Outcome</dt><dd>${outcomeHtml(x.outcome)}</dd>` : ""}
+    </dl>
+    ${x.url ? `<a class="cta" href="${esc(x.url)}" target="_blank" rel="noopener"><button type="button" class="primary">Read the judgment on ULII ↗</button></a>` : ""}
+    <p class="note">Classifications are machine-coded (version 1) and may contain errors. The judgment is the authoritative source.</p>
+    <h3>Issues in dispute</h3>
+    ${x.issues.length ? `<div class="chips">${x.issues.map((i) => `<span class="chip">${esc(i)}</span>`).join("")}</div>` : `<p class="note">No construction issue coded (often a procedural ruling).</p>`}
+    <h3>Digest</h3>
+    <div class="digest">A digest of this decision has not yet been written. Digests of leading decisions are being added progressively.</div>
+    <h3>Legislation cited</h3>
+    ${legs.length ? `<ul>${legs.map((l) => `<li>${l.url ? `<a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.title)}</a>` : esc(l.title)}</li>`).join("")}</ul>` : ""}
+    ${x.statutes.length ? `<p class="note">Statutes referred to: ${x.statutes.map(esc).join(", ")}.</p>` : `<p class="note">None extracted.</p>`}
+    <h3>Cites (decisions in the Atlas)</h3>
+    ${x.cites.length ? `<ul>${x.cites.map((c) => `<li>${caseLink(c)}</li>`).join("")}</ul>` : `<p class="note">None found.</p>`}
+    <h3>Cited by (later decisions in the Atlas)</h3>
+    ${x.citedBy.length ? `<ul>${x.citedBy.map((c) => `<li>${caseLink(c)}</li>`).join("")}</ul>` : `<p class="note">None found.</p>`}`;
+  $("#drawer").classList.add("on"); $("#scrim").classList.add("on");
+  document.title = `${x.cit} · Uganda Construction & Arbitration Law Atlas`;
+  $("#drawer").focus(); $("#drawer").scrollTop = 0;
+}
+function closeCase() {
+  $("#drawer").classList.remove("on"); $("#scrim").classList.remove("on");
+  document.title = "Uganda Construction & Arbitration Law Atlas";
+  if (location.hash.startsWith("#/case/")) history.replaceState(null, "", "#/cases");
+}
+
+function renderLeg() {
+  const rows = [...LEG].sort((a, b) => (b.effective || "").localeCompare(a.effective || "")).map((l) => `
+    <tr><td>${l.url ? `<a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.title)}</a>` : esc(l.title)}
+      ${l.citation ? `<div class="note">${esc(l.citation)}</div>` : ""}${l.provisions ? `<div class="note">${esc(l.provisions)}</div>` : ""}</td>
+      <td>${esc(l.area || "")}</td><td class="num">${fmtDate(l.effective)}</td><td>${esc(l.status || "")}${l.verified ? "" : ' <span class="note">(unverified)</span>'}</td>
+      <td class="num">${l.citedIn ? `<a href="#/cases" data-leg="${l.id}">${l.citedIn}</a>` : "0"}</td></tr>`).join("");
+  $("#legtbl tbody").innerHTML = rows;
+  $("#legtbl").addEventListener("click", (e) => {
+    const a = e.target.closest("a[data-leg]"); if (!a) return;
+    $("#f-leg").value = a.dataset.leg; apply();
+  });
+}
+
+function route() {
+  const h = location.hash || "#/cases";
+  const tab = h.startsWith("#/legislation") ? "legislation" : h.startsWith("#/about") ? "about" : "cases";
+  ["cases", "legislation", "about"].forEach((t) => $(`#tab-${t}`).hidden = t !== tab);
+  document.querySelectorAll("nav.tabs a[data-tab]").forEach((a) => a.dataset.tab === tab ? a.setAttribute("aria-current", "page") : a.removeAttribute("aria-current"));
+  if (h.startsWith("#/case/")) openCase(decodeURIComponent(h.slice(7))); else if ($("#drawer").classList.contains("on")) closeCase();
+}
+
+function bind() {
+  let t; $("#q").addEventListener("input", () => { clearTimeout(t); t = setTimeout(apply, 150); });
+  ["#f-stream", "#f-cg", "#f-y0", "#f-y1", "#f-issue", "#f-out", "#f-arb", "#f-leg", "#f-state", "#f-cited", "#sort"]
+    .forEach((s) => $(s).addEventListener("change", () => apply()));
+  $("#reset").addEventListener("click", () => { $("#filters").reset(); const y = [...$("#f-y0").options].map((o) => o.value);
+    $("#f-y0").value = y[0]; $("#f-y1").value = y.at(-1); apply(); });
+  $("#more").addEventListener("click", () => { shown += 40; render(); });
+  $("#close").addEventListener("click", closeCase); $("#scrim").addEventListener("click", closeCase);
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && $("#drawer").classList.contains("on")) closeCase(); });
+  window.addEventListener("hashchange", route);
+  renderLeg(); apply();
+}
+load().catch(() => { $("#results").innerHTML = `<li class="empty">The archive could not be loaded. Please refresh the page.</li>`; });
+</script>
+</body>
+</html>
