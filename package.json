@@ -1,0 +1,8 @@
+{
+  "name": "ugcd-writing",
+  "private": true,
+  "description": "Word builds for project writing (CLAUDE.md conventions)",
+  "dependencies": {
+    "docx": "^9.16.0"
+  }
+}
