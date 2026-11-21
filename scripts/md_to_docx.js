@@ -1,13 +1,13 @@
 // Build a Word document from a simple Markdown file, following the project's writing conventions
 // (Times New Roman 12 pt, 1.5 line spacing, A4, 1-inch margins, live hyperlinks, page numbers).
-// Supports: "# " title, "## "/"### " headings, paragraphs, "- " bullets, **bold**, *italic*, [text](url)
+// Supports: "# " title, "## "/"### " headings, paragraphs, "- " bullets, pipe tables, **bold**, *italic*, [text](url)
 // (link text may itself be *italic*), and ![caption](image.png) figures (300-dpi PNGs, scaled to width).
 // Usage: node scripts/md_to_docx.js input.md output.docx
 const fs = require("fs");
 const path = require("path");
 const {
   Document, Packer, Paragraph, TextRun, ExternalHyperlink, HeadingLevel, AlignmentType, Footer,
-  PageNumber, LevelFormat, ImageRun,
+  PageNumber, LevelFormat, ImageRun, Table, TableRow, TableCell, WidthType, ShadingType, BorderStyle,
 } = require("docx");
 
 const FONT = "Times New Roman";
@@ -36,6 +36,28 @@ function inline(text, base = {}) {
   return out;
 }
 
+// Pipe table -> Word table (header row shaded and bold; widths in DXA, proportional to text length).
+function table(block) {
+  const rows = block.split("\n").filter((l) => !/^\s*\|?\s*:?-{3,}/.test(l))
+    .map((l) => l.trim().replace(/^\||\|$/g, "").split("|").map((c) => c.trim()));
+  const ncol = rows[0].length, total = 9026; // A4 text width at 1-inch margins
+  const len = Array.from({ length: ncol }, (_, j) => Math.max(...rows.map((r) => (r[j] || "").length), 4));
+  const sum = len.reduce((a, b) => a + b, 0);
+  const widths = len.map((x) => Math.round((total * x) / sum));
+  widths[ncol - 1] += total - widths.reduce((a, b) => a + b, 0);
+  const border = { style: BorderStyle.SINGLE, size: 4, color: "BFBFBF" };
+  return new Table({
+    width: { size: total, type: WidthType.DXA }, columnWidths: widths,
+    rows: rows.map((r, i) => new TableRow({ tableHeader: i === 0, children: r.map((c, j) => new TableCell({
+      width: { size: widths[j], type: WidthType.DXA },
+      borders: { top: border, bottom: border, left: border, right: border },
+      shading: i === 0 ? { type: ShadingType.CLEAR, color: "auto", fill: "E8EEF6" } : undefined,
+      margins: { top: 60, bottom: 60, left: 100, right: 100 },
+      children: [new Paragraph({ spacing: { line: 276, after: 0 }, children: inline(c, i === 0 ? { bold: true, size: 22 } : { size: 22 }) })],
+    })) })),
+  });
+}
+
 function build(md, dir) {
   const blocks = md.replace(/\r/g, "").split(/\n\s*\n/).map((b) => b.trim()).filter(Boolean);
   const children = [];
@@ -53,6 +75,9 @@ function build(md, dir) {
       const width = 600, height = Math.round((h / w) * width);
       children.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [new ImageRun({ type: "png", data: img, transformation: { width, height } })] }));
       children.push(new Paragraph({ style: "Caption", children: inline(cap) }));
+    } else if (b.split("\n").every((l) => l.trim().startsWith("|"))) {
+      children.push(table(b));
+      children.push(new Paragraph({ spacing: { after: 120 }, children: [] }));
     } else if (b.split("\n").every((l) => l.startsWith("- "))) {
       for (const l of b.split("\n")) children.push(new Paragraph({ numbering: { reference: "bullets", level: 0 }, children: inline(l.slice(2)) }));
     } else {
