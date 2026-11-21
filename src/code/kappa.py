@@ -6,11 +6,11 @@ import pandas as pd
 from sklearn.metrics import cohen_kappa_score
 
 from src.code.gold_sheet import FIELDS
-from src.config import OUT
+from src.config import GOLD_SHEET, GOLD_SOURCE, OUT
 
 
 def main():
-    fp = OUT / "coding" / "gold_coding_sheet.xlsx"
+    fp = GOLD_SHEET
     c1 = pd.read_excel(fp, sheet_name="coder1", dtype=str).set_index("case_id")
     c2 = pd.read_excel(fp, sheet_name="coder2", dtype=str).set_index("case_id")
     rows = []
@@ -25,6 +25,7 @@ def main():
         rows.append({"field": col, "n": len(both), "kappa": round(k, 2), "agreement": round((both.a == both.b).mean(), 2)})
     r = pd.DataFrame(rows)
     r["review"] = r.kappa < 0.6
+    r["gold_source"] = GOLD_SOURCE  # AI vs AI: self-consistency, not human inter-coder reliability
     r.to_csv(OUT / "coding" / "kappa.csv", index=False)
     print(r.to_string(index=False))
 

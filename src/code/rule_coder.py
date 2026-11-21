@@ -6,12 +6,13 @@ Inputs : data/processed/cases.parquet, data/interim/{texts,ocr_texts,legislation
 Outputs: data/processed/rule_codes.parquet   one row per case, codebook fields (+ evidence columns)
          data/processed/cases.parquet        schema columns filled (contract_form, dispute_causes, ...)
 """
+import json
 import re
 
 import pandas as pd
 
 from src.code.segment import segment
-from src.config import INTERIM, PROCESSED
+from src.config import INTERIM, OUT, PROCESSED
 from src.extract.fulltext import CLAUSE, FORMS, INTEREST, features, money
 from src.ingest.registers import case_aliases
 
@@ -53,6 +54,26 @@ def party_type(side):
     return "private employer"
 
 
+ROLE_I = r"(?:plaintiff|applicant|appellant|claimant|petitioner)s?"
+ROLE_R = r"(?:defendant|respondent)s?"
+
+
+def role_from_text(text, role):
+    """'the plaintiff was the contractor' / 'engaged the defendant to construct' -> contractor / subcontractor / employer."""
+    t = text[:20000]
+    gap = r"\W+(?:\w+\W+){0,8}?"
+    cues = {
+        "subcontractor": rf"\bthe {role}{gap}(?:was|is|as|being) (?:the |a |an )?sub-?contractor",
+        "contractor": rf"\bthe {role}{gap}(?:was|is|as|being) (?:the |a |an )?(?:main |principal )?contractor\b|"
+                      rf"(?:engaged|contracted|hired|awarded|appointed|retained) the {role}\W+(?:\w+\W+){{0,4}}?to (?:construct|build|carry out|execute|undertake|rehabilitate|renovate|erect|complete)",
+        "consultant": rf"\bthe {role}{gap}(?:was|is|as|being) (?:the |a |an )?(?:project |supervising |design )?(?:consultant|architect|engineer|quantity surveyor)\b",
+        "private employer": rf"\bthe {role}{gap}(?:was|is|as|being) (?:the )?(?:employer|client|developer|owner)\b",
+    }
+    n = {k: len(re.findall(rx, t, F)) for k, rx in cues.items()}
+    k, v = max(n.items(), key=lambda kv: kv[1])
+    return k if v else None
+
+
 def sides(parties):
     s = re.split(r"\s+(?:v|vs|versus)\.?\s+", "" if pd.isna(parties) else str(parties), maxsplit=1, flags=F)
     return (s + [""])[:2]
@@ -60,12 +81,13 @@ def sides(parties):
 
 # ---------- B. proceeding ----------
 def proceeding(court, head, case_number):
-    h = f"{case_number or ''} {head}"
+    own = "\n".join(l for l in head[:1500].split("\n") if not re.search(r"aris(?:ing|es)|from", l, F))
+    h = f"{case_number or ''} {own}"
     if re.search(r"PPDA|Appeals Tribunal|CADER", str(court)):
         return "tribunal review", "tribunal decision"
     if re.search(r"judicial review|certiorari|prerogative", h, F):
         p = "judicial review"
-    elif re.search(r"arbitration (?:cause|application)|arb\.? cause|\bCAD/ARB\b", h, F):
+    elif re.search(r"arbitration cause|arb\.? cause|\bCAD/ARB\b", h, F):
         p = "arbitration cause"
     elif re.search(r"(?:civil|misc\w*\.?) appeal|appeal no|\bSCCA\b|\bCACA\b", h[:600], F) and not re.search(r"civil application|misc\w*\.? application", h[:300], F):
         p = "appeal"
@@ -96,7 +118,8 @@ PROJECT = {
 }
 FORM_MAP = {"FIDIC 2017": "FIDIC 2017", "FIDIC 1999": "FIDIC 1999", "FIDIC (unspecified)": "FIDIC other",
             "PPDA SBD": "PPDA SBD", "JBC/PAM": "JBC or PAM"}
-WRITTEN = r"(?:entered into|executed|signed|concluded|awarded)\s+(?:a|an|the)\s+(?:written\s+)?(?:\w+\s+){0,3}(?:contract|agreement)|contract (?:agreement )?dated|agreement dated|letter of (?:award|acceptance)"
+WRITTEN = r"(?:entered into|executed|signed|concluded)\s+(?:a|an|the)\s+(?:written\s+)?(?:\w+\s+){0,3}(?:contract|agreement)|written (?:contract|agreement)|contract (?:agreement )?dated|agreement dated"
+SBD_CUES = r"general conditions of contract|special conditions of contract|\bGCC\b|\bSCC\b|standard bidding|bid(?:ding)? document"
 ORAL = r"oral(?:ly)? (?:agreement|contract)|verbal (?:agreement|contract)|no written (?:contract|agreement)|orally agreed"
 
 
@@ -106,10 +129,12 @@ def project_type(text):
     return k if v >= 2 else "not stated"
 
 
-def contract_form(text, forms):
+def contract_form(text, forms, state):
     for f in ["FIDIC 2017", "FIDIC 1999", "FIDIC (unspecified)", "PPDA SBD", "JBC/PAM"]:
         if f in forms:
             return FORM_MAP[f]
+    if state and re.search(SBD_CUES, text, F):
+        return "PPDA SBD"
     if re.search(ORAL, text, F):
         return "oral or no written contract"
     if re.search(WRITTEN, text, F):
@@ -143,9 +168,12 @@ CAUSES = {
     "c_fraud": r"\bfraud|corrupt|forg(?:ed|ery)|bribe|collusion|misrepresent",
 }
 
+_TH = OUT / "coding" / "cause_thresholds.json"
+CAUSE_MIN = json.loads(_TH.read_text()) if _TH.exists() else {}   # {cause: {"issues": bool, "body": int}}
+
 # ---------- F. procedure ----------
-NOTICE = (r"notice of (?:claim|dispute|intention to claim)|time.?bar|condition precedent|(?:sub-)?clause 20\.1\b|"
-          r"failed to (?:give|issue|serve) (?:the )?(?:requisite |required )?notice|within (?:28|twenty.?eight) days")
+NOTICE = (r"notice of (?:claim|dispute|intention to claim)|(?:sub-)?clause 20\.1\b|contractual (?:notice|time.?bar)|"
+          r"fail(?:ed|ure) to (?:give|issue|serve) (?:the )?(?:requisite |required |contractual )?notice (?:of (?:the )?claim|under (?:the )?(?:contract|clause))")
 NOTICE_UPHELD = (r"(?:claim|claims) (?:is|are|was|were|stands?) (?:time.?barred|barred)|"
                  r"fail(?:ed|ure) to (?:give|issue|serve) (?:the )?(?:requisite |required )?notice[^.]{0,80}(?:fatal|bar|defeat|cannot)")
 TIER = (r"amicable settlement|dispute adjudication board|\bDAB\b|\bDAAB\b|adjudicator|engineer'?s decision|"
@@ -216,7 +244,7 @@ def interest(holding):
         basis = "court rate"
     elif re.search(r"contractual rate|agreed rate|rate (?:agreed|provided|stipulated) (?:in|under) the (?:contract|agreement)", h, F):
         basis = "contractual"
-    elif re.search(r"no (?:order (?:as to|for) )?interest|interest (?:is )?(?:declined|refused|denied)", h, F):
+    elif re.search(r"no (?:order (?:as to|for) )?interest|interest (?:is )?(?:declined|refused|denied)", h, F) or not re.search(r"interest", h, F):
         basis = "none"
     else:
         basis = "not stated"
@@ -277,8 +305,8 @@ def arbitration(head_issues, analysis, holding, out):
     k, v = max(scores.items(), key=lambda kv: kv[1])
     atype = k if v else "other"
     challenge = atype in ("set-aside", "enforcement or recognition")
-    zone = head_issues + " " + analysis
-    g = {f: ("Y" if re.search(rx, zone, F) else "N") if challenge else "NA" for f, rx in GROUNDS.items()}
+    zone = head_issues + (" " + analysis if challenge else "")   # grounds argued at length only matter in challenges
+    g = {f: "Y" if re.search(rx, zone, F) else "N" for f, rx in GROUNDS.items()}
     h = re.sub(r"\s+", " ", holding)
     if atype == "set-aside":
         res = ("partly set aside" if re.search(r"set aside in part|partly set aside|partially set aside", h, F) else
@@ -291,7 +319,9 @@ def arbitration(head_issues, analysis, holding, out):
     defer = ("Y" if res in ("upheld", "enforced") or out == "referred to arbitration"
              or (atype == "stay or referral" and out == "initiator succeeded") else
              "N" if res in ("set aside", "partly set aside", "enforcement refused")
-             or (atype == "stay or referral" and out == "initiator failed") else "NA")
+             or (atype == "stay or referral" and out == "initiator failed") else
+             "Y" if atype in ("appointment", "interim measures", "extension of time") and out == "initiator succeeded" else
+             "N" if atype in ("appointment", "interim measures", "extension of time") and out == "initiator failed" else "NA")
     return atype, g, res, defer
 
 
@@ -330,9 +360,18 @@ def code_case(c, text, legpats):
     fx = features(c.case_id, text, holding, str(c.case_number or ""))
     a, b = sides(c.parties)
     ta, tb = party_type(a), party_type(b)
+    # name gives state / bank / individual reliably; for companies the text says who built and who employed
+    if ta in ("private employer", "contractor", "supplier", "consultant"):
+        ta = role_from_text(text, ROLE_I) or ta
+    if tb in ("private employer", "contractor", "supplier", "consultant"):
+        tb = role_from_text(text, ROLE_R) or tb
     proc, dec = proceeding(c.court, head, c.case_number)
-    out = outcome(holding)
+    tail = text[int(len(text) * .75):]
+    out = outcome(holding) or outcome(tail) or REG_OUTCOME.get(c.outcome_class)   # last resort: register summary
     cur, q_c, q_a = quantum(text, facts, holding, out)
+    if cur == "NA":   # no claimed/awarded figure: dominant currency among all sums mentioned
+        allc = [c_ for c_, _, _ in money(text)]
+        cur = max(set(allc), key=allc.count) if allc else "NA"
     rate, basis = interest(holding)
     body = text[1500:]
     r = {"case_id": c.case_id, "include": "Y", "exclusion_reason": "NA", "stream": c.stream,
@@ -340,9 +379,10 @@ def code_case(c, text, legpats):
          "state_party": "Y" if "state body" in (ta, tb) else "N",
          "foreign_party": "Y" if re.search(FOREIGN, str(c.parties), F) and not re.search(r"\(U\)|uganda", a if re.search(FOREIGN, a, F) else b, F) else "N",
          "project_type": project_type(facts + " " + issues_txt if len(facts) > 500 else text[: len(text) // 2]),
-         "contract_form": contract_form(text, fx["contract_forms"]), "contract_value_ugx": contract_value(text)}
+         "contract_form": contract_form(text, fx["contract_forms"], "state body" in (ta, tb)), "contract_value_ugx": contract_value(text)}
     for k, rx in CAUSES.items():  # raised in the issues, or argued at length in the body
-        r[k] = "Y" if re.search(rx, issues_txt, F) or len(re.findall(rx, body, F)) >= 3 else "N"
+        r[f"n_issues:{k}"], r[f"n_body:{k}"] = len(re.findall(rx, issues_txt, F)), len(re.findall(rx, body, F))
+        r[k] = "Y" if (r[f"n_issues:{k}"] and CAUSE_MIN.get(k, {}).get("issues", True)) or r[f"n_body:{k}"] >= CAUSE_MIN.get(k, {}).get("body", 3) else "N"
     r["notice_timebar_raised"] = "Y" if re.search(NOTICE, body, F) else "N"
     r["notice_timebar_upheld"] = ("Y" if re.search(NOTICE_UPHELD, analysis + holding, F) else "N") if r["notice_timebar_raised"] == "Y" else "NA"
     r["tier_skipped_raised"] = "Y" if re.search(TIER, body, F) else "N"
@@ -351,7 +391,7 @@ def code_case(c, text, legpats):
     cl = sorted(set(CLAUSE.findall(body)), key=lambda x: [int(p) for p in x.split(".")])[:25]
     r["clauses_cited"] = (f"{forms[0] + ' ' if forms else ''}cl. " + "; ".join(cl)) if cl else None
     r.update({"outcome": out, "currency": cur, "quantum_claimed": q_c, "quantum_awarded": q_a,
-              "interest_rate_pct": rate, "interest_basis": basis, "costs_to": costs_to(holding, out),
+              "interest_rate_pct": rate, "interest_basis": basis, "costs_to": (lambda x: x if x != "NA" else costs_to(tail, out))(costs_to(holding, out)),
               "filing_date": filing_date(facts or text[:6000])})
     if c.stream in ("arbitration", "both"):
         atype, g, res, defer = arbitration(head + " " + issues_txt, analysis, holding, out)
@@ -369,12 +409,17 @@ def code_case(c, text, legpats):
     return r
 
 
+REG_OUTCOME = {"successful": "initiator succeeded", "unsuccessful": "initiator failed", "partial": "partly succeeded",
+               "referred to arbitration": "referred to arbitration"}
+
 SECTOR = {"road": "transport", "bridge or other civil": "transport/civil", "water and sanitation": "water",
           "energy and power": "energy", "building": "buildings", "supply-and-install": "supply", "not stated": None}
 
 
 def main():
     cases = pd.read_parquet(PROCESSED / "cases.parquet")
+    reg = pd.read_parquet(INTERIM / "registers_coded.parquet")[["case_id", "outcome_class"]]
+    cases = cases.drop(columns=["outcome_class"], errors="ignore").merge(reg, on="case_id", how="left")
     texts = load_texts(cases)
     legpats = leg_patterns(pd.read_parquet(INTERIM / "legislation.parquet"))
     rows = [code_case(c, texts[c.case_id], legpats) for c in cases.itertuples() if c.case_id in texts.index]
@@ -396,7 +441,7 @@ def main():
         "arb_application_type": s.arb_application_type.where(s.arb_application_type.ne("NA")),
         "arb_grounds": s[list(GROUNDS)].eq("Y").apply(lambda r: [g[2:] for g in GROUNDS if r[g]], axis=1),
     })
-    cases = cases.drop(columns=[c for c in schema.columns if c in cases.columns]).merge(
+    cases = cases.drop(columns=[c for c in schema.columns if c in cases.columns] + ["outcome_class"]).merge(
         schema, left_on="case_id", right_index=True, how="left")
     cases.to_parquet(PROCESSED / "cases.parquet", index=False)
 

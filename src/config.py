@@ -27,3 +27,8 @@ for period in PERIODS:  # link raw period folders from OneDrive (never copied or
     link = RAW / period
     if not link.exists() and (SOURCE / period).exists():
         link.symlink_to(SOURCE / period)
+
+# Gold labels used by src.code.kappa / src.code.validate. PROVISIONAL: AI-coded (Claude, codebook v1.0,
+# 21 Nov 2026; see the sheet README). Swap for the human-coded sheet (outputs/coding/gold_coding_sheet.xlsx) when available.
+GOLD_SHEET = OUT / "coding" / "gold_coding_sheet_AI.xlsx"
+GOLD_SOURCE = "AI-coded (provisional)"
