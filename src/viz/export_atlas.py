@@ -188,6 +188,87 @@ def party_profiles(a):
     return sorted(out, key=lambda x: -x["n"])
 
 
+def phase2(a, ins):
+    """Data for Phase-2 charts: litigation-filter flows and race, cause->clause->outcome flow, before/after reform
+    series, duration curves, recovery distributions (anonymous values only)."""
+    import statsmodels.api as sm
+    import statsmodels.formula.api as smf
+    from lifelines import KaplanMeierFitter
+    from src.analysis.s3_temporal_legislation import events, quarterly, seg_terms
+    from src.analysis.s8_clauses import family, topics
+    from src.analysis.s11_litigation_filter import COURT, FAMILIES, OAG, OBS
+    from src.temporal.register_temporal import ulii_totals
+    ext = ROOT / "data" / "external"
+    con = a[a.stream.isin(["construction", "both"])]
+    # 5 + 15: litigation filter flows and annual shares
+    court = pd.DataFrame([{"id": r.case_id, "year": r.year, "family": COURT[c]} for r in con.itertuples() for c in COURT
+                          if getattr(r, c) == "Y"]).drop_duplicates(["id", "family"])
+    oag = pd.read_csv(ext / "oag-reports/government_Auditor_General/oag_infrastructure_sentence_corpus_2017_2025_expanded.csv")
+    oag = pd.DataFrame({"year": oag.year, "family": oag.driver_label_expanded.fillna(oag.driver_label).map(OAG)}).dropna()
+    obs = pd.read_csv(ext / "the-observer/paper2_online_discourse/outputs_observer_full_corpus/extended_analysis/articles_extended.csv",
+                      usecols=["year", "main_driver_nice"])
+    obs = pd.DataFrame({"year": obs.year, "family": obs.main_driver_nice.map(OBS)}).dropna()
+    srcs = {"Court decisions": court, "Auditor-General findings": oag, "The Observer articles": obs}
+    ins["filterFlow"] = [{"source": k, "family": f, "n": int((d.family == f).sum())} for k, d in srcs.items() for f in FAMILIES]
+    race = []
+    for y in range(2017, 2026):
+        for k, d in srcs.items():
+            dy = d[d.year == y]
+            for f in FAMILIES:
+                race.append({"year": y, "source": k, "family": f, "share": round(100 * (dy.family == f).mean(), 1) if len(dy) else 0})
+    ins["race"] = race
+    # 7: cause -> clause topic -> outcome (construction, decided on the merits)
+    m = con[con.outcome.isin(MERITS)].copy()
+    m["fam"] = [family(f, st) for f, st in zip(m.contract_form, m.state_party)]
+    m["topics"] = [topics(c, f) for c, f in zip(m.clauses_cited, m.fam)]
+    m["res"] = np.where(m.outcome.isin(MERITS[:2]), "Claimant succeeded", "Claimant failed")
+    keep = [c for c in CAUSES if (m[c] == "Y").sum() >= 12]
+    cc, co = {}, {}
+    for r in m.itertuples():
+        tps = r.topics[:2] or ["no clause cited"]
+        for c in keep:
+            if getattr(r, c) == "Y":
+                for t in tps:
+                    cc[(CAUSE_LABEL[c], t)] = cc.get((CAUSE_LABEL[c], t), 0) + 1 / len(tps)
+                    co[(t, r.res)] = co.get((t, r.res), 0) + 1 / len(tps)
+    ins["clauseFlow"] = {"a": [{"s": k[0], "t": k[1], "v": round(v, 2)} for k, v in cc.items() if v >= 1],
+                         "b": [{"s": k[0], "t": k[1], "v": round(v, 2)} for k, v in co.items() if v >= 1]}
+    # 8: before/after series (quarterly, per 1,000 ULII judgments) with segmented fits and counterfactual
+    leg = pd.read_parquet(INTERIM / "legislation.parquet")
+    q = quarterly(a.assign(date_decided=pd.to_datetime(a.date_decided)), ulii_totals())
+    its = []
+    for lab, dt in events(leg).items():
+        post, tp = seg_terms(q, dt)
+        for y in ["construction-related", "arbitration-related"]:
+            d = q.assign(y=q[y], post=post, t_post=tp)
+            fit = smf.glm("y ~ t + post + t_post", data=d, family=sm.families.Poisson(), offset=np.log(d.exposure)).fit(scale="X2")
+            cf = np.exp(fit.params["Intercept"] + fit.params["t"] * d.t) * d.exposure
+            its.append({"event": lab, "date": str(pd.Timestamp(dt).date()), "series": y,
+                        "q": [str(i) for i in d.index], "obs": [round(1000 * v / e, 3) for v, e in zip(d.y, d.exposure)],
+                        "fit": [round(1000 * v / e, 3) for v, e in zip(fit.fittedvalues, d.exposure)],
+                        "cf": [round(1000 * v / e, 3) for v, e in zip(cf, d.exposure)],
+                        "level": round(float(np.exp(fit.params["post"])), 2), "p": round(float(fit.pvalues["post"]), 3)})
+    ins["its"] = its
+    # 9: duration curves (suits and appeals), by stream and by issue
+    fd = pd.to_datetime(a.filing_date, format="%d/%m/%Y", errors="coerce")
+    yf = pd.to_numeric(a.case_number.str.extract(r"(?i)of\s*((?:19|20)\d{2})")[0], errors="coerce")
+    filed = fd.fillna(pd.to_datetime(yf.astype("Int64").astype(str) + "-07-01", errors="coerce"))
+    a2 = a.assign(yrs=(pd.to_datetime(a.date_decided) - filed).dt.days / 365.25)
+    a2 = a2[a2.yrs.between(0, 25) & a2.proceeding.isin(["suit", "appeal"])]
+    def km(d):
+        k = KaplanMeierFitter().fit(d.yrs, np.ones(len(d)))
+        sf = k.survival_function_.iloc[:, 0]
+        return {"n": int(len(d)), "median": round(float(k.median_survival_time_), 2), "t": [round(float(t), 2) for t in sf.index], "s": [round(float(v), 3) for v in sf.values]}
+    curves = {"stream": {st: km(a2[a2.stream == st]) for st in ["construction", "both", "arbitration"] if (a2.stream == st).sum() >= 10},
+              "issue": {CAUSE_LABEL[c]: km(a2[a2[c] == "Y"]) for c in CAUSES if (a2[c] == "Y").sum() >= 12}}
+    ins["km"] = curves
+    # 10: recovery distributions per issue (anonymous values)
+    ok = con.quantum_claimed.gt(0) & con.quantum_awarded.notna() & con.outcome.isin(MERITS[:3])
+    r = con[ok].assign(rec=lambda x: (x.quantum_awarded / x.quantum_claimed).clip(0, 1))
+    ins["recDots"] = {CAUSE_LABEL[c]: sorted(round(float(v), 3) for v in r[r[c] == "Y"].rec) for c in CAUSES if (r[c] == "Y").sum() >= 8}
+    ins["recDots"]["All construction claims"] = sorted(round(float(v), 3) for v in r.rec)
+
+
 def main():
     DEST.mkdir(parents=True, exist_ok=True)
     a = pd.read_parquet(PROCESSED / "analysis_cases.parquet")
@@ -210,6 +291,7 @@ def main():
             "outcome": nn(r.outcome), "project": None if r.project_type in (None, "not stated") else nn(r.project_type),
             "arb": None if r.arb_application_type in (None, "NA") or pd.isna(r.arb_application_type) else r.arb_application_type,
             "grounds": [v for k, v in GROUNDS.items() if getattr(r, k) == "Y"], "state": r.state_party == "Y",
+            "defer": r.deference if r.deference in ("Y", "N") else None,
             "statutes": list(r.statutes_cited) if r.statutes_cited is not None else [],
             "leg": list(r.leg_ids_cited) if r.leg_ids_cited is not None else [],
             "summary": nn(c.holding_summary.get(r.case_id)), "keyIssues": nn(c.key_issues.get(r.case_id)),
@@ -271,6 +353,8 @@ def main():
     sp = csv("12_spillover", "t1_model")
     ins["spillover"] = {"model": rec(sp.rename(columns={sp.columns[0]: "term"})) if len(sp) else [],
                         "moran": rec(csv("12_spillover", "t2_moran_by_year")) if len(csv("12_spillover", "t2_moran_by_year")) else []}
+    phase2(a, ins)
+    ins["y2026"] = {"legislation": [l for l in legs if (l["effective"] or "") >= "2025-08-01"]}
     parties = party_profiles(a)
     (DEST / "parties.json").write_text(json.dumps(parties, ensure_ascii=False, separators=(",", ":")))
     (DEST / "insights.json").write_text(json.dumps(ins, ensure_ascii=False, separators=(",", ":"), default=nn))
