@@ -212,7 +212,7 @@ footer{margin-top:48px;border-top:1px solid var(--line);padding-top:14px;color:v
 
     <section id="tab-map" hidden>
       <h2>Where construction disputes arise</h2>
-      <p class="intro">Construction-related decisions by district of the dispute. Hexagon view: one equal-size tile per district (size = decisions per 100,000 people, colour = share involving a state body). Use the years and issue to filter; select a district to see its decisions.</p>
+      <p class="intro">Construction-related decisions by district of the dispute. Honeycomb view: one equal-size tile per district, placed roughly where it lies, labelled with its number of decisions; colour shows decisions per 100,000 people or the share involving a state body. Use the years and issue to filter; select a district to see its decisions.</p>
       <div class="card">
         <div class="ctrl">
           <div><label>View</label><div class="seg" id="mv-view" role="group" aria-label="Map view"><button type="button" aria-pressed="true" data-v="hex">Honeycomb</button><button type="button" aria-pressed="false" data-v="geo">Geographic</button><button type="button" aria-pressed="false" data-v="3d">3D</button></div></div>
@@ -702,6 +702,9 @@ function insights() {
     section("compass", "Each court's dispute fingerprint", "The mix of issues differs by forum: the PPDA Appeals Tribunal is almost all procurement, while the Commercial Division hears the payment, guarantee and termination disputes.",
       `<div class="grid2">${INS.compass.courts.map((c, i) => `<div class="card"><h3 style="margin-top:0">${esc(c.court)} <span class="note">(${c.n})</span></h3><div class="chart" id="c-comp-${i}"></div></div>`).join("")}</div>`,
       "Wedge length: share of the court's construction-related decisions with each issue (square-root scale)."),
+    section("compassArb", "Each court's arbitration fingerprint", "Arbitration work also differs by forum: CADER and the Court of Appeal see appointments and challenges to awards, while the High Court handles most stays, interim measures and enforcement.",
+      `<div class="grid2">${INS.compassArb.courts.map((c, i) => `<div class="card"><h3 style="margin-top:0">${esc(c.court)} <span class="note">(${c.n})</span></h3><div class="chart" id="c-compa-${i}"></div></div>`).join("")}</div>`,
+      "Wedge length: share of the forum's arbitration applications of each type (square-root scale)."),
     section("spill", "Do disputes spread?", `Not between districts. A district's own decisions predict more the next year (×${(INS.spillover.model[0]?.IRR || 0).toFixed(2)} per decision), but its neighbours' do not (×${(INS.spillover.model[1]?.IRR || 0).toFixed(2)}, not significant). Spatial clustering appeared only in 2020, 2025 and 2026, as road-corridor disputes grew.`,
       `<div class="card"><div class="chart" id="c-moran"></div></div>`, "Moran's I of located decisions by year (queen contiguity); larger dots: significant at 5%. Exploratory: about half of decisions can be located."),
   ].join("");
@@ -712,6 +715,7 @@ function insights() {
     extra: (d) => `<b>${cap(d.arb_application_type)}</b>${d.n} applications · applicant succeeded ${d.initiator_success}%`});
   chartMap();
   INS.compass.courts.forEach((c, i) => compassSvg(`#c-comp-${i}`, INS.compass.issues, c.shares, {size: 280, title: c.court}));
+  INS.compassArb.courts.forEach((c, i) => compassSvg(`#c-compa-${i}`, INS.compassArb.types.map(cap), c.shares, {size: 280, title: c.court, color: css("--c-arb")}));
   (() => { const rows = INS.spillover.moran, w = 680, h = 220, m = {t: 12, r: 10, b: 26, l: 44};
     const svg = svgIn("#c-moran", w, h), x = d3.scalePoint(rows.map((d) => d.year), [m.l + 10, w - m.r - 10]), y = d3.scaleLinear([-0.1, 0.3], [h - m.b, m.t]);
     svg.append("g").attr("class", "axis gridl").attr("transform", `translate(${m.l},0)`).call(d3.axisLeft(y).ticks(4).tickSize(-(w - m.l - m.r)));
@@ -728,17 +732,22 @@ function insights() {
 const RANK = (c) => /Supreme/.test(c) ? 3 : /Court of Appeal|Constitutional/.test(c) ? 2 : /Tribunal|CADER|Registrar|Bureau/.test(c) ? 0 : 1;
 const reduced = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 function wilson(k, n) { if (!n) return [0, 0]; const z = 1.96, p = k / n, d = 1 + z * z / n, c = p + z * z / (2 * n), m = z * Math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)); return [100 * (c - m) / d, 100 * (c + m) / d]; }
-function compassSvg(sel, labels, values, {size = 260, color = css("--c-con"), title = ""} = {}) {
-  const svg = svgIn(sel, size, size), r = size / 2 - 34, cx = size / 2, cy = size / 2, n = labels.length, max = Math.max(...values, 1);
+function compassSvg(sel, labels, values, {size = 260, color = css("--c-con"), title = "", unit = "%"} = {}) {
+  const SHORT = {"Payment & certification": "Payment", "Final account": "Final account", "Delay & EOT": "Delay/EOT", "Liquidated damages": "LDs",
+    "Termination & abandonment": "Termination", "Defects & workmanship": "Defects", "Guarantees & bonds": "Guarantees", "Site, land & nuisance": "Land/site",
+    "Fraud & corruption": "Fraud", "Professional fees": "Prof. fees", "Price adjustment": "Price adj.", "Force majeure": "Force majeure",
+    "Stay or referral": "Stay/referral", "Enforcement or recognition": "Enforcement", "Interim measures": "Interim", "Set-aside": "Set-aside",
+    "Appointment": "Appointment", "Jurisdiction": "Jurisdiction", "Other": "Other", "Extension of time": "Extension"};
+  const W = size + 90, svg = svgIn(sel, W, size), r = size / 2 - 30, cx = W / 2, cy = size / 2, n = labels.length, max = Math.max(...values, 1);
   const rs = d3.scaleSqrt().domain([0, max]).range([0, r]), arc = d3.arc();
   [0.5, 1].forEach((f) => svg.append("circle").attr("cx", cx).attr("cy", cy).attr("r", r * f).attr("fill", "none").attr("stroke", css("--grid")));
   labels.forEach((l, i) => {
     const a0 = (i / n) * 2 * Math.PI, a1 = ((i + 1) / n) * 2 * Math.PI;
     svg.append("path").attr("transform", `translate(${cx},${cy})`).attr("d", arc({innerRadius: 0, outerRadius: rs(values[i]), startAngle: a0 + 0.02, endAngle: a1 - 0.02}))
-      .attr("fill", color).attr("opacity", .85).on("mousemove", (e) => tip.show(e, `<b>${esc(title)}</b>${esc(l)}: ${values[i]}${typeof values[i] === "number" && values[i] <= 100 && title ? "%" : ""}`)).on("mouseleave", tip.hide);
-    const am = (a0 + a1) / 2 - Math.PI / 2, lx = cx + (r + 14) * Math.cos(am), ly = cy + (r + 14) * Math.sin(am);
+      .attr("fill", color).attr("opacity", .85).on("mousemove", (e) => tip.show(e, `<b>${esc(title)}</b>${esc(l)}: ${values[i]}${unit}`)).on("mouseleave", tip.hide);
+    const am = (a0 + a1) / 2 - Math.PI / 2, lx = cx + (r + 10) * Math.cos(am), ly = cy + (r + 10) * Math.sin(am);
     svg.append("text").attr("class", "lbl").attr("x", lx).attr("y", ly).attr("dy", ".35em").attr("text-anchor", Math.abs(Math.cos(am)) < .3 ? "middle" : Math.cos(am) > 0 ? "start" : "end")
-      .style("font-size", "9.5px").text(l.replace(" & ", " & ").split(" ").slice(0, 2).join(" "));
+      .style("font-size", "10px").text(SHORT[l] || l);
   });
 }
 
@@ -839,54 +848,71 @@ function sideList(d, info) {
     ${Object.keys(top).length ? `<p class="note">Most common issues (all years): ${Object.entries(top).map(([k, v]) => `${esc(k)} (${v})`).join(", ")}</p>` : ""}
     <ul>${info.ids.map((i) => `<li>${linkCase(i)}</li>`).join("")}</ul><p class="note">Located automatically from place names; may be wrong.</p>`;
 }
+let mvMetric = "rate";
 function drawMap() {
   const {out} = mapData(), pop = Object.fromEntries(INS.hex.map((h) => [h.district, h.population]));
   const rate = (d) => out[d] ? 1e5 * out[d].n / pop[d] : 0, sh = (d) => out[d] ? out[d].state / out[d].n : null;
-  const color = d3.scaleSequential([0, 1], d3.interpolateRgb(css("--c-con"), css("--c-arb")));
   const maxRate = d3.max(INS.hex, (h) => rate(h.district)) || 1;
+  const rateCol = d3.scaleSequentialSqrt([0, maxRate], (t) => d3.interpolateBlues(0.18 + 0.82 * t));
+  const shareCol = d3.scaleSequential([0, 1], (t) => d3.interpolateOranges(0.15 + 0.8 * t));
+  const fill = (d) => !out[d] ? css("--soft") : mvMetric === "rate" ? rateCol(rate(d)) : shareCol(sh(d));
+  const tipHtml = (d) => { const o = out[d]; return `<b>${esc(d)}</b>${o ? `${o.n} decision${o.n > 1 ? "s" : ""} · ${rate(d).toFixed(2)} per 100,000 people · ${Math.round(100 * sh(d))}% with a state party` : "no located decision"}`; };
   const click = (d) => { mvSel = d; sideList(d, out[d]); };
-  $("#mv-legend").innerHTML = `<span><i style="background:${css("--c-con")}"></i>private parties only</span><span><i style="background:${color(.5)}"></i>half with a state party</span><span><i style="background:${css("--c-arb")}"></i>all with a state party</span><span><i style="background:${css("--soft")};border:1px dashed ${css("--muted")}"></i>no located decision</span>`;
+  // legend: continuous ramp for the chosen measure
+  const ramp = mvMetric === "rate" ? [0, .25, .5, .75, 1].map((t) => rateCol(maxRate * t * t)) : [0, .25, .5, .75, 1].map((t) => shareCol(t));
+  $("#mv-legend").innerHTML = `<div class="seg" role="group" aria-label="Colour by" style="margin:0 12px 0 0"><button type="button" aria-pressed="${mvMetric === "rate"}" data-m="rate">Per 100,000 people</button><button type="button" aria-pressed="${mvMetric === "share"}" data-m="share">Share with a state party</button></div>
+    <span>${mvMetric === "rate" ? "low" : "0%"} <i style="width:90px;background:linear-gradient(90deg,${ramp.join(",")})"></i> ${mvMetric === "rate" ? maxRate.toFixed(1) + " per 100,000" : "100%"}</span>
+    <span><i style="background:${css("--soft")};border:1px solid ${css("--line")}"></i>no located decision</span><span><i style="border:1.5px dashed ${css("--muted")};background:transparent"></i>one decision only</span>`;
+  $("#mv-legend").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => { mvMetric = b.dataset.m; drawMap(); }));
+
   if (mvView === "geo") {
     const go = (geo) => {
-      const w = 600, h = 520, svg = svgIn("#c-mv", w, h), path = d3.geoPath(d3.geoMercator().fitSize([w, h], geo));
-      const op = d3.scaleSqrt([0, maxRate], [0.25, 1]);
-      svg.selectAll("path").data(geo.features).join("path").attr("d", path).attr("class", (f) => `district ${out[f.properties.district]?.n === 1 ? "hexcell low" : ""}`)
-        .attr("fill", (f) => out[f.properties.district] ? color(sh(f.properties.district)) : css("--soft")).attr("fill-opacity", (f) => out[f.properties.district] ? op(rate(f.properties.district)) : 1)
+      const w = 600, h = 560, svg = svgIn("#c-mv", w, h), path = d3.geoPath(d3.geoMercator().fitExtent([[10, 10], [w - 10, h - 10]], geo));
+      svg.selectAll("path").data(geo.features).join("path").attr("d", path)
+        .attr("fill", (f) => fill(f.properties.district)).attr("stroke", css("--panel")).attr("stroke-width", .7)
+        .attr("stroke-dasharray", (f) => out[f.properties.district]?.n === 1 ? "2 2" : null)
         .style("cursor", "pointer").on("click", (e, f) => click(f.properties.district))
-        .on("mousemove", (e, f) => { const d = f.properties.district, o = out[d]; tip.show(e, `<b>${esc(d)}</b>${o ? `${o.n} decisions · ${rate(d).toFixed(2)} per 100,000 · ${Math.round(100 * sh(d))}% state` : "no located decision"}`); }).on("mouseleave", tip.hide);
+        .on("mousemove", (e, f) => tip.show(e, tipHtml(f.properties.district))).on("mouseleave", tip.hide);
+      const top = INS.hex.filter((c) => out[c.district]?.n >= 4);
+      svg.selectAll("text.hl").data(geo.features.filter((f) => top.some((t) => t.district === f.properties.district))).join("text")
+        .attr("class", "hexlbl").attr("transform", (f) => `translate(${path.centroid(f)})`).attr("dy", ".35em").style("font-size", "10px").text((f) => f.properties.district);
     };
     if (mvGeo) go(mvGeo); else fetch("data/districts.geojson").then((r) => r.json()).then((g) => { mvGeo = g; go(g); });
     return;
   }
-  const H = INS.hex, xs = H.map((h) => h.x), ys = H.map((h) => h.y), R = 13;
-  const w = 600, h = 560, sx = d3.scaleLinear([d3.min(xs), d3.max(xs)], [40, w - 40]), unit = sx(1) - sx(0);
-  const sy = d3.scaleLinear([d3.min(ys), d3.max(ys)], [h - 40, 40]);
-  const hexPts = (r) => d3.range(6).map((i) => [r * Math.cos(Math.PI / 6 + i * Math.PI / 3), r * Math.sin(Math.PI / 6 + i * Math.PI / 3)]);
-  const size = d3.scaleSqrt([0, maxRate], [0, unit * 0.62]);
-  const svg = svgIn("#c-mv", w, h);
+  // honeycomb and 3D share one equal-aspect layout (hexagon units, circumradius 1)
+  const H = INS.hex, all = H.concat(INS.hexSpare || []), w = 600, h = 600, pad = 24;
+  const xr = d3.extent(all, (c) => c.x), yr = d3.extent(all, (c) => c.y);
+  const k = Math.min((w - 2 * pad) / (xr[1] - xr[0] + 2), (h - 2 * pad) / (yr[1] - yr[0] + 2));
+  const X = (x) => pad + (x - xr[0] + 1) * k, Y = (y) => h - pad - (y - yr[0] + 1) * k;  // north up
+  const hex = (r) => d3.range(6).map((i) => [r * Math.cos(Math.PI / 2 + i * Math.PI / 3), r * Math.sin(Math.PI / 2 + i * Math.PI / 3)]);
+  const R = k * 0.98, svg = svgIn("#c-mv", w, h), pts = (arr) => arr.map((p) => p.join(",")).join(" ");
   if (mvView === "3d") {
-    const hs = d3.scaleLinear([0, d3.max(H, (x) => out[x.district]?.n || 0) || 1], [0, 120]);
-    const iso = (x, y) => [x * 0.9 + 30, y * 0.55 + 140];
-    const sorted = [...H].sort((a, b) => sy(a.y) - sy(b.y));
-    sorted.forEach((c) => {
-      const [cx, cy] = iso(sx(c.x), sy(c.y)), o = out[c.district], ht = o ? hs(o.n) : 0, base = hexPts(unit * 0.55).map(([px, py]) => [cx + px * 0.9, cy + py * 0.55]);
-      const top = base.map(([px, py]) => [px, py - ht]), col = o ? d3.color(color(sh(c.district))) : d3.color(css("--soft"));
-      if (ht > 0) for (let i = 0; i < 6; i++) { const j = (i + 1) % 6; if (base[i][1] + base[j][1] < 2 * cy - 1) continue;
-        svg.append("polygon").attr("points", [base[i], base[j], top[j], top[i]].map((p) => p.join(",")).join(" ")).attr("fill", col.darker(i % 2 ? 0.9 : 0.6)); }
-      svg.append("polygon").attr("points", top.map((p) => p.join(",")).join(" ")).attr("fill", col).attr("class", `hexcell ${o?.n === 1 ? "low" : ""}`)
-        .on("click", () => click(c.district)).on("mousemove", (e) => tip.show(e, `<b>${esc(c.district)}</b>${o ? `${o.n} decisions · ${Math.round(100 * sh(c.district))}% state` : "no located decision"}`)).on("mouseleave", tip.hide);
+    const maxN = d3.max(H, (c) => out[c.district]?.n || 0) || 1, hs = d3.scaleSqrt([0, maxN], [0, 110]);
+    const ix = (x, y) => [x, 150 + y * 0.58];  // oblique view: compress depth
+    const order = [...all].sort((a, b) => Y(a.y) - Y(b.y));
+    order.forEach((c) => {
+      const d = c.district, o = d && out[d], ht = o ? hs(o.n) : 0, [cx, cy] = ix(X(c.x), Y(c.y) * 0.98);
+      const base = hex(R).map(([px, py]) => [cx + px, cy + py * 0.58]), top = base.map(([px, py]) => [px, py - ht]);
+      const col = d3.color(d ? fill(d) : css("--soft"));
+      if (ht > 0) [[0, 1], [1, 2], [5, 0]].forEach(([i, j], q) =>
+        svg.append("polygon").attr("points", pts([base[i], base[j], top[j], top[i]])).attr("fill", col.darker(q === 1 ? 0.35 : 0.75)));
+      svg.append("polygon").attr("points", pts(top)).attr("fill", col).attr("stroke", css("--panel")).attr("stroke-width", .6)
+        .style("cursor", d ? "pointer" : null).on("click", () => d && click(d)).on("mousemove", (e) => d && tip.show(e, tipHtml(d))).on("mouseleave", tip.hide);
+      if (o && o.n >= 6) svg.append("text").attr("class", "hexlbl").attr("x", cx).attr("y", cy - ht - 8).style("font-size", "10px").text(`${d} ${o.n}`);
     });
-    svg.append("text").attr("class", "lbl").attr("x", 10).attr("y", h - 8).text("Height = number of located decisions; colour = share with a state party");
+    svg.append("text").attr("class", "lbl").attr("x", 10).attr("y", h - 6).text("Column height: located decisions (square-root scale) · colour: selected measure");
     return;
   }
-  svg.selectAll("g.hx").data(H).join("g").attr("transform", (c) => `translate(${sx(c.x)},${sy(c.y)})`).each(function (c) {
-    const g = d3.select(this), o = out[c.district];
-    g.append("polygon").attr("points", hexPts(unit * 0.55).map((p) => p.join(",")).join(" ")).attr("fill", "none").attr("stroke", css("--line"));
-    g.append("polygon").attr("points", hexPts(o ? Math.max(4, size(rate(c.district))) : unit * 0.5).map((p) => p.join(",")).join(" "))
-      .attr("class", `hexcell ${o?.n === 1 ? "low" : ""}`).attr("fill", o ? color(sh(c.district)) : css("--soft"))
-      .on("click", () => click(c.district)).on("mousemove", (e) => tip.show(e, `<b>${esc(c.district)}</b>${o ? `${o.n} decisions · ${rate(c.district).toFixed(2)} per 100,000 · ${Math.round(100 * sh(c.district))}% state` : "no located decision"}`)).on("mouseleave", tip.hide);
-    if (o && o.n >= 3) g.append("text").attr("class", "hexlbl").attr("dy", ".35em").text(c.district.slice(0, 4));
-  });
+  (INS.hexSpare || []).forEach((c) => svg.append("polygon").attr("transform", `translate(${X(c.x)},${Y(c.y)})`).attr("points", pts(hex(R))).attr("fill", "none").attr("stroke", css("--line")));
+  const g = svg.selectAll("g.hx").data(H).join("g").attr("transform", (c) => `translate(${X(c.x)},${Y(c.y)})`)
+    .style("cursor", "pointer").on("click", (e, c) => click(c.district)).on("mousemove", (e, c) => tip.show(e, tipHtml(c.district))).on("mouseleave", tip.hide);
+  g.append("polygon").attr("points", pts(hex(R))).attr("fill", (c) => fill(c.district)).attr("stroke", css("--panel")).attr("stroke-width", 1.2)
+    .attr("stroke-dasharray", (c) => out[c.district]?.n === 1 ? "3 2" : null).attr("class", (c) => out[c.district]?.n === 1 ? "hexcell low" : "hexcell");
+  const dark = (c) => out[c.district] && (mvMetric === "rate" ? rate(c.district) / maxRate > .3 : sh(c.district) > .6);
+  g.append("text").attr("class", "hexlbl").attr("dy", "-.15em").style("font-size", `${Math.max(7, k * .36)}px`).attr("fill", (c) => dark(c) ? "#fff" : null).text((c) => c.district.slice(0, 4));
+  g.append("text").attr("class", "hexlbl").attr("dy", "1.05em").style("font-size", `${Math.max(7, k * .36)}px`).style("font-weight", 600)
+    .attr("fill", (c) => dark(c) ? "#fff" : null).text((c) => out[c.district]?.n || "");
   if (mvSel) sideList(mvSel, out[mvSel]);
 }
 
@@ -973,11 +999,13 @@ function partyPage(slug) {
     <p class="note">${esc(cap(p.type || "party"))} · ${p.first}–${p.last}</p>
     <div class="stats"><div class="stat"><span>Decisions</span><div class="big">${p.n}</div><span>${p.asInitiator} as claimant or applicant</span></div>
       <div class="stat"><span>Won</span><div class="big">${p.winRate == null ? "–" : p.winRate + "%"}</div><span>of ${p.decided} decided</span></div></div>
-    <div class="grid2"><div class="card"><h3 style="margin-top:0">Dispute compass</h3><div class="chart" id="pt-compass"></div><p class="note">Wedge length: number of the party's decisions with each issue.</p></div>
+    <div class="grid2"><div class="card"><h3 style="margin-top:0">Dispute compass: construction issues</h3><div class="chart" id="pt-compass"></div><p class="note">Wedge length: number of the party's decisions with each issue.</p></div>
+      ${Object.keys(p.arb || {}).length ? `<div class="card"><h3 style="margin-top:0">Dispute compass: arbitration applications</h3><div class="chart" id="pt-compass-arb"></div><p class="note">Wedge length: number of the party's arbitration applications of each type.</p></div>` : ""}
       <div class="card"><h3 style="margin-top:0">Decisions over time</h3><div class="chart" id="pt-time"></div><p class="note">Green: won · orange: lost · grey: other outcome. Select a dot to open it.</p>
       <h3>Most frequent opponents</h3><ul>${Object.entries(p.opponents).map(([o, n]) => `<li>${esc(o)} (${n})</li>`).join("")}</ul></div></div>
     <h3>Decisions</h3><ol class="results">${p.cases.map((c) => BYID[c.id]).filter(Boolean).sort((a, b) => (b.date || "").localeCompare(a.date || "")).map(card).join("")}</ol>`;
-  compassSvg("#pt-compass", issues, vals, {size: 300, title: p.name});
+  compassSvg("#pt-compass", issues, vals, {size: 300, title: p.name, unit: " decisions"});
+  if (Object.keys(p.arb || {}).length) compassSvg("#pt-compass-arb", INS.compassArb.types.map(cap), INS.compassArb.types.map((t) => p.arb[t] || 0), {size: 300, title: p.name, color: css("--c-arb"), unit: " applications"});
   const cs = p.cases.map((c) => ({...c, x: BYID[c.id]})).filter((c) => c.x?.date), w = 460, h = 150;
   const svg = svgIn("#pt-time", w, h), x = d3.scaleTime(d3.extent(CASES, (d) => d.date ? new Date(d.date) : null), [14, w - 14]);
   svg.append("g").attr("class", "axis").attr("transform", `translate(0,${h - 22})`).call(d3.axisBottom(x).ticks(6).tickSizeOuter(0));

@@ -125,29 +125,40 @@ def insights(a, cases):
 
 
 def hex_layout(g):
-    """Assign each district one hexagon of a grid over Uganda, minimising total centroid-to-cell distance (Hungarian)."""
+    """Equal-area hex tiles inside Uganda's outline: find a cell size giving slightly more cells than districts, then
+    assign each district one cell minimising total centroid-to-cell distance (Hungarian). Returns cell centres in
+    hexagon units (pointy-top, circumradius 1) and the spare cells, drawn faintly to keep the country's shape."""
     from scipy.optimize import linear_sum_assignment
+    from shapely.geometry import Point
     gp = g.to_crs(32636)
+    outline = gp.union_all() if hasattr(gp, "union_all") else gp.unary_union
     cen = np.column_stack([gp.centroid.x, gp.centroid.y])
-    xmin, ymin = cen.min(axis=0)
-    xmax, ymax = cen.max(axis=0)
+    minx, miny, maxx, maxy = outline.bounds
     n = len(g)
-    for size in np.linspace(60000, 15000, 120):
-        cells = [(x + (size * 0.866 if r % 2 else 0), y) for r, y in enumerate(np.arange(ymin - size, ymax + size, size * 1.5))
-                 for x in np.arange(xmin - size, xmax + size, size * 1.732)]
-        cells = np.array(cells)
-        near = np.min(np.hypot(cells[:, None, 0] - cen[None, :, 0], cells[:, None, 1] - cen[None, :, 1]), axis=1) < size * 1.6
-        cells = cells[near]
-        if len(cells) >= n * 1.25:
-            break
+    best = None
+    for size in np.linspace(40000, 10000, 300):
+        cells = []
+        for r, y in enumerate(np.arange(miny, maxy + size, size * 1.5)):
+            for x in np.arange(minx + (size * 0.866 if r % 2 else 0), maxx + size, size * 1.732):
+                if outline.contains(Point(x, y)):
+                    cells.append((x, y, r))
+        if len(cells) >= n:
+            best = (size, np.array(cells))
+            if len(cells) <= n * 1.08:
+                break
+    size, cells = best
     cost = np.hypot(cen[:, None, 0] - cells[None, :, 0], cen[:, None, 1] - cells[None, :, 1])
     ri, ci = linear_sum_assignment(cost)
-    xy = cells[ci]
-    xy = (xy - xy.min(axis=0)) / size  # in hexagon units
-    return {g.district.iloc[i]: {"x": round(float(xy[k, 0]), 3), "y": round(float(xy[k, 1]), 3)} for k, i in enumerate(ri)}, size
+    x0, y0 = cells[:, 0].min(), cells[:, 1].min()
+    unit = lambda c: {"x": round(float((c[0] - x0) / size), 3), "y": round(float((c[1] - y0) / size), 3)}
+    used = set(ci)
+    spare = [unit(cells[k]) for k in range(len(cells)) if k not in used]
+    return {g.district.iloc[i]: unit(cells[k]) for i, k in zip(ri, ci)}, spare
 
 
 def party_profiles(a):
+    global BYARB
+    BYARB = {r.case_id: r.arb_application_type for r in a.itertuples() if r.arb_application_type not in (None, "NA") and pd.notna(r.arb_application_type)}
     from src.analysis.s6_networks import norm_party
     rows = []
     for r in a.itertuples():
@@ -171,7 +182,8 @@ def party_profiles(a):
                     "type": dec.type.mode().iat[0] if dec.type.notna().any() else None, "n": int(len(dec)),
                     "asInitiator": int((dec.role == "initiator").sum()), "winRate": round(100 * w.mean(), 0) if len(w) else None,
                     "decided": int(len(w)), "first": int(dec.year.min()), "last": int(dec.year.max()),
-                    "issues": {k: int(v) for k, v in iss.items()}, "cases": [{"id": r.id, "role": r.role, "won": r.won} for r in dec.itertuples()],
+                    "issues": {k: int(v) for k, v in iss.items()},
+                    "arb": {k: int(v) for k, v in pd.Series([BYARB.get(i) for i in dec.id]).dropna().value_counts().items()}, "cases": [{"id": r.id, "role": r.role, "won": r.won} for r in dec.itertuples()],
                     "opponents": dec.opp.dropna().value_counts().head(8).to_dict()})
     return sorted(out, key=lambda x: -x["n"])
 
@@ -222,7 +234,8 @@ def main():
     import geopandas as gpd
     g = gpd.read_file(ROOT / "data/external/procurement-risk-uganda/docs/data/districts.geojson")
     g["district"] = g.district.str.strip()
-    hexes, _ = hex_layout(g)
+    hexes, spare = hex_layout(g)
+    ins["hexSpare"] = spare
     loc = pd.read_parquet(PROCESSED / "case_locations.parquet")
     al = a.merge(loc, on="case_id", how="left")
     con = al[al.stream.isin(["construction", "both"])]
@@ -239,6 +252,10 @@ def main():
     ins["compass"] = {"issues": [CAUSE_LABEL[c] for c in keep],
                       "courts": [{"court": cg, "n": int(len(d)), "shares": [round(100 * (d[c] == "Y").mean(), 1) for c in keep]}
                                  for cg, d in con2.groupby("cg") if len(d) >= 20]}
+    arbc = a[a.stream.isin(["arbitration", "both"]) & a.arb_application_type.notna() & a.arb_application_type.ne("NA")].assign(cg=lambda x: x.court.map(court_group))
+    types = [t for t in arbc.arb_application_type.value_counts().index if (arbc.arb_application_type == t).sum() >= 4]
+    ins["compassArb"] = {"types": types, "courts": [{"court": cg, "n": int(len(d)), "shares": [round(100 * (d.arb_application_type == t).mean(), 1) for t in types]}
+                                                    for cg, d in arbc.groupby("cg") if len(d) >= 12]}
     # profiler benchmarks by issue: duration (suits/appeals) and recovery (aggregates only)
     yf = pd.to_numeric(con2.case_number.str.extract(r"(?i)of\s*((?:19|20)\d{2})")[0], errors="coerce")
     con2["yrs"] = (con2.year - yf).where(lambda x: x.between(0, 25) & con2.proceeding.isin(["suit", "appeal"]))
@@ -260,9 +277,13 @@ def main():
 
     # district boundaries, coordinates rounded to ~100 m
     g = json.load(open(ROOT / "data/external/procurement-risk-uganda/docs/data/districts.geojson"))
-    rnd = lambda x: [rnd(v) for v in x] if isinstance(x, list) else round(x, 3)
+    from shapely.geometry import mapping, shape
+    from shapely.geometry.polygon import orient
+    rnd = lambda x: [rnd(v) for v in x] if isinstance(x, (list, tuple)) else round(x, 3)
     for f in g["features"]:
-        f["geometry"]["coordinates"] = rnd(f["geometry"]["coordinates"])
+        geom = shape(f["geometry"])  # d3-geo wants clockwise exterior rings (the reverse of RFC 7946)
+        geom = type(geom)([orient(p, sign=-1.0) for p in geom.geoms]) if geom.geom_type == "MultiPolygon" else orient(geom, sign=-1.0)
+        f["geometry"] = {"type": geom.geom_type, "coordinates": rnd(mapping(geom)["coordinates"])}
         f["properties"] = {k: f["properties"][k] for k in ("district", "region")}
     (DEST / "districts.geojson").write_text(json.dumps(g, separators=(",", ":")))
 
