@@ -915,7 +915,10 @@ let mvMetric = "rate";
 function drawMap() {
   const {out} = mapData(), pop = Object.fromEntries(INS.hex.map((h) => [h.district, h.population]));
   const rate = (d) => out[d] ? 1e5 * out[d].n / pop[d] : 0, sh = (d) => out[d] ? out[d].state / out[d].n : null;
-  const maxRate = d3.max(INS.hex, (h) => rate(h.district)) || 1;
+  // fixed scale: the highest district rate over the whole decade (for the chosen issue), so years are comparable
+  const issue = $("#mv-issue").value, full = {};
+  Object.entries(INS.districtCases).forEach(([d, ids]) => { full[d] = ids.filter((i) => BYID[i] && (!issue || BYID[i].issues.includes(issue))).length; });
+  const maxRate = d3.max(INS.hex, (h) => 1e5 * (full[h.district] || 0) / pop[h.district]) || 1;
   const rateCol = d3.scaleSequentialSqrt([0, maxRate], (t) => d3.interpolateBlues(0.18 + 0.82 * t));
   const shareCol = d3.scaleSequential([0, 1], (t) => d3.interpolateOranges(0.15 + 0.8 * t));
   const fill = (d) => !out[d] ? css("--soft") : mvMetric === "rate" ? rateCol(rate(d)) : shareCol(sh(d));
@@ -973,9 +976,9 @@ function drawMap() {
   g.append("polygon").attr("points", pts(hex(R))).attr("fill", (c) => fill(c.district)).attr("stroke", css("--panel")).attr("stroke-width", 1.2)
     .attr("stroke-dasharray", (c) => out[c.district]?.n === 1 ? "3 2" : null).attr("class", (c) => out[c.district]?.n === 1 ? "hexcell low" : "hexcell");
   const dark = (c) => out[c.district] && (mvMetric === "rate" ? rate(c.district) / maxRate > .3 : sh(c.district) > .6);
-  g.append("text").attr("class", "hexlbl").attr("dy", "-.15em").style("font-size", `${Math.max(7, k * .36)}px`).attr("fill", (c) => dark(c) ? "#fff" : null).text((c) => c.district.slice(0, 4));
+  g.append("text").attr("class", "hexlbl").attr("dy", "-.15em").style("font-size", `${Math.max(7, k * .36)}px`).style("fill", (c) => dark(c) ? "#fff" : null).text((c) => c.district.slice(0, 4));
   g.append("text").attr("class", "hexlbl").attr("dy", "1.05em").style("font-size", `${Math.max(7, k * .36)}px`).style("font-weight", 600)
-    .attr("fill", (c) => dark(c) ? "#fff" : null).text((c) => out[c.district]?.n || "");
+    .style("fill", (c) => dark(c) ? "#fff" : null).text((c) => out[c.district]?.n || "");
   if (mvSel) sideList(mvSel, out[mvSel]);
 }
 
