@@ -84,52 +84,71 @@ def main():
         F.loc[(F.buyer == new) & (F.year >= y0), "disputes_hist"] += inh
         F = F[~((F.buyer == old) & (F.year >= y0))]
     F["y_next"] = [int(cnt.get((b, y + 1), 0) > 0) for b, y in zip(F.buyer, F.year)]
-    D = F[F.year <= 2025].copy()
-    for c in ["nonopen_share", "above_est_share", "top_supplier_share"]:
+    # v2: add multi-source signals (court, tribunal, audit, press) and bid-level red flags
+    from src.model.entity_signals import REGULATORS
+    S = pd.read_parquet(INTERIM / "entity_signals.parquet").rename(columns={"entity": "buyer"})
+    B = pd.read_parquet(INTERIM / "entity_bids.parquet")
+    F = F.merge(S, on=["buyer", "year"], how="left").merge(B, on=["buyer", "year"], how="left")
+    for c in ["court", "tribunal", "oag", "press"]:
+        F[c] = F[c].fillna(0)
+    F = F[~F.buyer.str.contains(REGULATORS)].sort_values(["buyer", "year"])
+    nxt = F.groupby("buyer")[["court", "tribunal", "oag", "press"]].shift(-1)
+    F["y_court"] = ((nxt.court + nxt.tribunal) > 0).astype(float).where(nxt.court.notna())
+    F["y_oag"] = (nxt.oag > 0).astype(float).where(nxt.oag.notna())
+    F["y_any"] = (nxt.sum(axis=1) > 0).astype(float).where(nxt.court.notna())
+    for c in ["court", "tribunal", "oag", "press"]:
+        F[f"{c}_hist"] = F.groupby("buyer")[c].cumsum()
+    bidc = ["bid_procs", "mean_bidders", "single_bid_share", "bid_cv", "not_lowest_share"]
+    shares = ["nonopen_share", "above_est_share", "top_supplier_share"] + bidc
+    D = F.copy()
+    for c in shares:
         D[c + "_missing"] = D[c].isna().astype(int)
         D[c] = D[c].fillna(D[c].median())
     D = pd.get_dummies(D, columns=["etype"], drop_first=False)
-    X_cols = [c for c in D.columns if c not in ("buyer", "year", "y_next")]
-    tr, te = D[D.year <= 2023], D[D.year >= 2024]   # outcomes: train <= 2024, test 2025–2026
-
-    res = []
-    def score(name, p):
-        res.append({"model": name, "ROC-AUC": round(roc_auc_score(te.y_next, p), 3), "PR-AUC": round(average_precision_score(te.y_next, p), 3),
-                    "Brier": round(brier_score_loss(te.y_next, np.clip(p, 0, 1)), 4)})
-    score("Base rate (no information)", np.full(len(te), tr.y_next.mean()))
-    hist_cols = ["disputes_t", "disputes_hist"]
-    lr_h = make_pipeline(StandardScaler(), LogisticRegression(max_iter=2000)).fit(tr[hist_cols], tr.y_next)
-    score("Dispute history only", lr_h.predict_proba(te[hist_cols])[:, 1])
-    lr = make_pipeline(StandardScaler(), LogisticRegression(C=0.5, max_iter=4000, class_weight=None)).fit(tr[X_cols].astype(float), tr.y_next)
-    score("Logistic regression (procurement + history)", lr.predict_proba(te[X_cols].astype(float))[:, 1])
-    gb = HistGradientBoostingClassifier(max_depth=3, learning_rate=0.05, max_iter=200, l2_regularization=1.0, random_state=SEED).fit(tr[X_cols].astype(float), tr.y_next)
-    score("Gradient boosting (procurement + history)", gb.predict_proba(te[X_cols].astype(float))[:, 1])
-    R = pd.DataFrame(res).set_index("model")
-
-    coef = pd.Series(lr.named_steps["logisticregression"].coef_[0], index=X_cols).sort_values()
-    # ranking for 2027 from 2026 features (refit on all years)
-    lr_all = make_pipeline(StandardScaler(), LogisticRegression(C=0.5, max_iter=4000)).fit(D[X_cols].astype(float), D.y_next)
-    T = F[F.year == 2026].copy()
-    for c in ["nonopen_share", "above_est_share", "top_supplier_share"]:
-        T[c + "_missing"] = T[c].isna().astype(int)
-        T[c] = T[c].fillna(D[c].median())
-    T = pd.get_dummies(T, columns=["etype"], drop_first=False).reindex(columns=D.columns, fill_value=0)
+    hist = ["court", "tribunal", "oag", "press", "court_hist", "tribunal_hist", "oag_hist", "press_hist", "disputes_hist"]
+    X_cols = [c for c in D.columns if c not in ("buyer", "year", "y_next", "y_court", "y_oag", "y_any", "disputes_t")]
+    TARGETS = {"y_court": ("Court or PPDA Tribunal decision next year", 2023, (2024, 2025)),
+               "y_oag": ("Auditor-General finding next year", 2022, (2023, 2024)),
+               "y_any": ("Any dispute signal next year (court, tribunal, audit or press)", 2022, (2023, 2024))}
+    res, coefs = [], {}
+    def ev(target, name, p, te):
+        res.append({"target": TARGETS[target][0], "model": name, "test rows": len(te), "test positives": int(te[target].sum()),
+                    "ROC-AUC": round(roc_auc_score(te[target], p), 3), "PR-AUC": round(average_precision_score(te[target], p), 3),
+                    "base rate": round(te[target].mean(), 3), "Brier": round(brier_score_loss(te[target], np.clip(p, 0, 1)), 4)})
+    for tg, (label, tmax, (t0, t1)) in TARGETS.items():
+        d = D[D[tg].notna() & D.year.between(2019, t1)]
+        tr, te = d[d.year <= tmax], d[d.year.between(t0, t1)]
+        if te[tg].sum() < 3 or tr[tg].sum() < 5:
+            continue
+        ev(tg, "Base rate", np.full(len(te), tr[tg].mean()), te)
+        h = make_pipeline(StandardScaler(), LogisticRegression(max_iter=3000)).fit(tr[hist].astype(float), tr[tg])
+        ev(tg, "History only (all sources)", h.predict_proba(te[hist].astype(float))[:, 1], te)
+        lr = make_pipeline(StandardScaler(), LogisticRegression(C=0.3, max_iter=5000)).fit(tr[X_cols].astype(float), tr[tg])
+        ev(tg, "Logistic regression (history + procurement + bids)", lr.predict_proba(te[X_cols].astype(float))[:, 1], te)
+        gb = HistGradientBoostingClassifier(max_depth=3, learning_rate=0.05, max_iter=200, l2_regularization=1.0, random_state=SEED).fit(tr[X_cols].astype(float), tr[tg])
+        ev(tg, "Gradient boosting", gb.predict_proba(te[X_cols].astype(float))[:, 1], te)
+        coefs[label] = pd.Series(lr.named_steps["logisticregression"].coef_[0], index=X_cols)
+    R = pd.DataFrame(res)
+    coef = pd.DataFrame(coefs).round(3)
+    coef = coef.reindex(coef.abs().max(axis=1).sort_values(ascending=False).index)
+    # internal ranking for 2027: any-signal model refitted on all years with known outcomes
+    d = D[D.y_any.notna()]
+    lr_all = make_pipeline(StandardScaler(), LogisticRegression(C=0.3, max_iter=5000)).fit(d[X_cols].astype(float), d.y_any)
+    T = D[D.year == 2026].copy()
     T["risk_2027"] = lr_all.predict_proba(T[X_cols].astype(float))[:, 1]
-    T.sort_values("risk_2027", ascending=False)[["buyer", "n_works", "log_value", "disputes_hist", "risk_2027"]].to_csv(OUT / "model" / "entity_risk_2027.csv", index=False)
-
-    md = [f"# Dispute early warning for procuring entities (entity-year model)\n",
-          f"Entity-years: {len(D)} ({D.buyer.nunique()} entities, 2019–2025); positives (entity named in a decision the next year): "
-          f"{int(D.y_next.sum())} ({100 * D.y_next.mean():.1f}%). Train: outcomes up to 2024 ({len(tr)} rows, {int(tr.y_next.sum())} positives); "
-          f"test: outcomes 2025–2026 ({len(te)} rows, {int(te.y_next.sum())} positives).\n",
-          "## Test performance\n", R.to_markdown(),
-          "\nPR-AUC should be read against the test base rate of " + f"{te.y_next.mean():.3f}.\n",
-          "## Logistic regression coefficients (standardised; positive = higher risk)\n", coef.round(3).to_frame("coef").to_markdown(),
-          "\n## Highest-risk entities for 2027 (internal; review before any publication)\n",
-          T.sort_values("risk_2027", ascending=False).head(15)[["buyer", "n_works", "disputes_hist", "risk_2027"]].round(3).to_markdown(index=False),
-          "\n**Caveats.** Associational, small N, litigated disputes only (a filtered sample); entity names matched automatically; "
-          "OCDS coverage is incomplete before 2019 and for local governments. Not a finding about any entity's conduct."]
+    T.sort_values("risk_2027", ascending=False)[["buyer", "n_works", "court_hist", "oag_hist", "press_hist", "risk_2027"]].to_csv(OUT / "model" / "entity_risk_2027.csv", index=False)
+    md = [f"# Dispute early warning for procuring entities (v2: multi-source target, bid red flags)\n",
+          f"Entity-years: {len(D)} ({D.buyer.nunique()} entities, regulators excluded). Positives (outcome known): "
+          f"court/tribunal {int(D.y_court.sum())}, audit {int(D.y_oag.sum())}, any signal {int(D.y_any.sum())}.\n",
+          "## Test performance (temporal split)\n", R.to_markdown(index=False),
+          "\nPR-AUC should be read against the base rate in the same row.\n",
+          "## Logistic regression coefficients by target (standardised; positive = higher risk; largest first)\n", coef.head(20).to_markdown(),
+          "\n## Highest-risk entities for 2027, any signal (internal; review before any publication)\n",
+          T.sort_values("risk_2027", ascending=False).head(15)[["buyer", "n_works", "court_hist", "oag_hist", "press_hist", "risk_2027"]].round(3).to_markdown(index=False),
+          "\n**Caveats.** Associational, small N; press and audit mentions are matched by name and include coverage that is not a dispute "
+          "involving the entity; court links are automatic until checked (outputs/review/entity_matches.xlsx). Not a finding about any entity's conduct."]
     (OUT / "model" / "entity_risk.md").write_text("\n".join(md))
-    print("\n".join(md[:5]))
+    print("\n".join(md[:6]))
 
 
 if __name__ == "__main__":
