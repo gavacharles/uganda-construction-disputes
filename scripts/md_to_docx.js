@@ -41,7 +41,10 @@ function table(block) {
   const rows = block.split("\n").filter((l) => !/^\s*\|?\s*:?-{3,}/.test(l))
     .map((l) => l.trim().replace(/^\||\|$/g, "").split("|").map((c) => c.trim()));
   const ncol = rows[0].length, total = 9026; // A4 text width at 1-inch margins
-  const len = Array.from({ length: ncol }, (_, j) => Math.max(...rows.map((r) => (r[j] || "").length), 4));
+  // width ~ content length (capped), but never narrower than the longest single word needs
+  const word = (j) => Math.max(...rows.map((r) => Math.max(...(r[j] || "").replace(/\*/g, "").split(/\s+/).map((w) => w.length))));
+  const len = Array.from({ length: ncol }, (_, j) =>
+    Math.max(Math.min(Math.max(...rows.map((r) => (r[j] || "").length)), 48), word(j) * 1.9 + 3, 6));
   const sum = len.reduce((a, b) => a + b, 0);
   const widths = len.map((x) => Math.round((total * x) / sum));
   widths[ncol - 1] += total - widths.reduce((a, b) => a + b, 0);
