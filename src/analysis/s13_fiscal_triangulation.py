@@ -386,6 +386,10 @@ def main():
     latest.round(2).to_csv(st.dir / "imports_latest.csv")
     st.table(audit.round(2), "data_audit", "URA/UBOS consistency checks", index=False)
     st.table(diesel.round(2), "diesel", "Diesel: URA pump price vs CIPI diesel sub-index")
+    from src.analysis import s13_fiscal_extensions as ext
+    from src.analysis.common import load as load_cases
+    imq, _, _ = imports_quarterly(ubos)
+    ext.run(st, ubos, m, tax, imq, load_cases())
     st.text("**Caveats.** Short annual URA series (eight comparable years); ratios reflect tax policy and sector "
             "attribution as well as compliance; the cement excise rate is taken from the parliamentary committee "
             "report and should be checked against the gazetted schedules; the HS–SITC concordance is approximate; "

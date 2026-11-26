@@ -130,3 +130,12 @@ def test_hs_group_mask_prefix_and_exclusion():
     from src.analysis.s13_fiscal_triangulation import _hs_mask
     codes = pd.Series(["7204.10.00", "7214.20.00", "7306.30.00", "2523.10.00"])
     assert _hs_mask(codes, ["72", "7306"], ["7204"]).tolist() == [False, True, True, False]
+
+
+def test_mofped_fund_labels_and_ura_years():
+    from src.ingest.mofped import FUND, _n
+    assert FUND[_n("GoUDevelopment")] == "gou_dev" and FUND[_n("ExternalFin")] == "ext_fin"
+    assert FUND[_n("Arears_Rec")] == "arrears" and FUND[_n("WageRecurrent")] == "wage"
+    from src.ingest.ura_books import years_any
+    assert years_any(["Table x", "No.  Class  2021-22  2022-23  2023-24  2024-25"], 0) == \
+        ["2021/22", "2022/23", "2023/24", "2024/25"]
