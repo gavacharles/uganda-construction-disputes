@@ -1,4 +1,4 @@
-"""Sector report 2026: URA Annual Imports Trade Report 2021 (HS 8-digit, the only edition on URA's statistics pages).
+"""PhD (stage 13 input): URA Annual Imports Trade Report 2021 (HS 8-digit, the only edition on URA's statistics pages).
 
 The report (2,583 pages, exported from Excel) has three parts:
   1.1  summary of countries      country -> value (UGX bn)
@@ -10,9 +10,9 @@ The report (2,583 pages, exported from Excel) has three parts:
 Values in 1.2 add up to 2.1 by HS code; quantities and descriptions in 1.2, and values in 2.2, are unreliable
 (see audit()). Only values are used.
 
-Output: data/processed/sector2026/ura_trade_2021.csv (one row per country block x HS code),
+Output: data/processed/fiscal_triangulation/ura_trade_2021.csv (one row per country block x HS code),
         ura_trade_2021_summary.csv (2.1), ura_trade_2021_audit.csv
-Usage: python -m src.report2026.parse_ura_trade
+Usage: python -m src.ingest.ura_trade
 """
 import re
 import subprocess
@@ -22,7 +22,7 @@ import pandas as pd
 from src.config import PROCESSED, ROOT
 
 SRC = ROOT / "data" / "external" / "sector" / "ura" / "annual-imports-trade-report.pdf"
-OUT = PROCESSED / "sector2026"
+OUT = PROCESSED / "fiscal_triangulation"
 MATCH_TOL = 0.01          # block total within 1% of a country total
 ROW = re.compile(r"^\s+(\d{4}\.\d{2}\.\d{2})\s+(.*?)\s+([\d,]+\.\d\d)\s+([\d,.]+)\s+(\w+)\s*$")
 SUMMARY_ROW = re.compile(r"^(\d{4}\.\d{2}\.\d{2})\s+(.*?)\s+([\d,]+\.\d\d)\s*$")

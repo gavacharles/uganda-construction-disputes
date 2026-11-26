@@ -106,7 +106,7 @@ def test_ura_sector_totals_sum_rows_and_flag_unsectorised():
 
 
 def test_triangulate_fiscal_year_sums_need_full_years():
-    from src.report2026.triangulate import fy_of, fy_sum
+    from src.analysis.s13_fiscal_triangulation import fy_of, fy_sum
     assert fy_of(pd.Timestamp("2025-07-01")) == "2025/26" and fy_of(pd.Timestamp("2026-04-01")) == "2025/26"
     q = pd.Series(1.0, index=pd.date_range("2024-07-01", periods=6, freq="QS-JUL"))
     s = fy_sum(q, 4)
@@ -114,7 +114,7 @@ def test_triangulate_fiscal_year_sums_need_full_years():
 
 
 def test_ura_trade_blocks_restart_and_match_country_totals():
-    from src.report2026.parse_ura_trade import blocks, match_countries
+    from src.ingest.ura_trade import blocks, match_countries
     lines = ["           2523.10.00   Cement clinkers                      10.00   50,000,000    KG",
              "           7214.20.00   Bars and rods                         5.00       17,123    KG",
              "           2523.10.00   Cement clinkers                       2.00   50,000,000    KG",
@@ -127,6 +127,6 @@ def test_ura_trade_blocks_restart_and_match_country_totals():
 
 
 def test_hs_group_mask_prefix_and_exclusion():
-    from src.report2026.triangulate import _hs_mask
+    from src.analysis.s13_fiscal_triangulation import _hs_mask
     codes = pd.Series(["7204.10.00", "7214.20.00", "7306.30.00", "2523.10.00"])
     assert _hs_mask(codes, ["72", "7306"], ["7204"]).tolist() == [False, True, True, False]

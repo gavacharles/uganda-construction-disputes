@@ -1,4 +1,6 @@
-"""Sector report 2026: UBOS x URA triangulation (data already in hand; MoFPED vote-level data not yet collected).
+"""Stage 13 (PhD): fiscal and trade triangulation of the construction sector — UBOS national accounts, prices and trade
+against URA administrative data (MoFPED vote-level releases and arrears to follow). Contextual layer for RQ2 and RQ4
+(cost, payment and tax conditions behind disputes) and RQ9 (price-adjustment and payment clause design).
 
   tax_intensity  URA construction-sector collections against UBOS construction value added (current prices, fiscal-year
                  sums): share of tax vs share of GDP, tax per UGX 100 of value added, and the same on sectorised revenue
@@ -15,15 +17,21 @@
                  recorded origin, and a check against UBOS SITC 66 and 67 for the same calendar year.
   data_audit     revisions across URA data books, totals that do not add, URA- vs UBOS-reported GDP shares, and the URA
                  diesel pump price against the CIPI diesel sub-index.
-Outputs: data/processed/sector2026/tri_*.csv
-Usage: python -m src.report2026.triangulate
+Inputs: data/processed/sector2026/{ubos_series,ura_series,ura_crosscheck,panel_monthly}.csv (shared series layer, built
+by src.report2026.parse_ubos / parse_ura / build_panel) and data/processed/fiscal_triangulation/ura_trade_2021*.csv
+(src.ingest.ura_trade).
+Outputs: outputs/analysis/13_fiscal_triangulation/ (tables, 300-dpi figures with captions, summary.md)
+Usage: python -m src.analysis.s13_fiscal_triangulation
 """
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
+from src.analysis.common import C, Stage
 from src.config import PROCESSED
 
-D = PROCESSED / "sector2026"
+D = PROCESSED / "sector2026"                # shared input series
+T = PROCESSED / "fiscal_triangulation"      # URA trade report extraction
 EXCISE_UGX_PER_TONNE = 500 * 20        # UGX 500 per 50 kg bag (Excise Duty Act 2014, Sch. 2); 750 from FY2026/27
 EARLY = ("2015/16", "2016/17")         # URA stand-alone table: different basis (see docstring)
 IMPORT_GROUPS = {"iron_steel": ["imp_iron_steel"], "machinery": ["imp_general_machinery", "imp_specialised_machinery"],
@@ -174,8 +182,8 @@ def _hs_mask(codes, include, exclude=()):
 
 
 def trade_2021(ubos, m):
-    rows = pd.read_csv(D / "ura_trade_2021.csv", dtype={"hs8": str})
-    summ = pd.read_csv(D / "ura_trade_2021_summary.csv", dtype={"hs8": str})
+    rows = pd.read_csv(T / "ura_trade_2021.csv", dtype={"hs8": str})
+    summ = pd.read_csv(T / "ura_trade_2021_summary.csv", dtype={"hs8": str})
     fx = m.exchange_rate.loc["2021-01-01":"2021-12-01"].mean()
     out = []
     for g, pref in HS_GROUPS.items():
@@ -245,6 +253,114 @@ def data_audit(ura, xc, ubos, m, tax):
     return audit, diesel
 
 
+def fy_ticks(ax, labels, every=2):
+    ax.set_xticks(range(len(labels)), [f"{y[2:4]}/{y[-2:]}" for y in labels], fontsize=8)
+    if every > 1:
+        for i, lbl in enumerate(ax.get_xticklabels()):
+            lbl.set_visible(i % every == 0)
+
+
+def figures(st, tax, cem, corr, rmse, trade):
+    t = tax[tax.comparable]
+    x = np.arange(len(t))
+    fig, (a, b) = plt.subplots(1, 2, figsize=(9, 3.6))
+    a.plot(x, t.gdp_share_pct, marker="o", color=C["arbitration"], label="share of GDP (UBOS)")
+    a.plot(x, t.tax_share_pct, marker="o", color=C["construction"], label="share of gross tax (URA)")
+    a.set_ylim(0, 7)
+    a.set_ylabel("%")
+    fy_ticks(a, t.index)
+    a.legend(frameon=False, fontsize=8, loc="lower left")
+    a.set_title("(a) Construction's share of GDP and of tax", loc="left", fontsize=10)
+    w = 0.38
+    b.bar(x - w / 2, t.tax_per_100_va, w, color=C["construction"], label="construction, per UGX 100 of value added")
+    b.bar(x + w / 2, t.economy_tax_per_100_gdp, w, color=C["neutral"], label="all sectors, per UGX 100 of GDP")
+    b.set_ylim(0, 19)
+    b.set_ylabel("UGX")
+    fy_ticks(b, t.index)
+    b.legend(frameon=False, fontsize=8, loc="upper left")
+    b.set_title("(b) Tax collected per UGX 100 of output", loc="left", fontsize=10)
+    for ax in (a, b):
+        st.style(ax)
+    st.fig(fig, "fig1_tax_intensity.png",
+           "Construction's share of gross URA collections and of GDP at current prices (a), and tax per UGX 100 of "
+           "construction value added against total collections per UGX 100 of GDP (b), FY2017/18–FY2024/25. "
+           "Fiscal-year sums of quarterly value added. Sources: URA annual data books; UBOS Quarterly GDP; author's "
+           "calculations.")
+
+    c = cem.loc["2017/18":]
+    x = np.arange(len(c))
+    fig, (a, b) = plt.subplots(1, 2, figsize=(9, 3.6), gridspec_kw={"width_ratios": [1.5, 1]})
+    a.plot(x, c.implied_taxed_mt_idx, marker="o", color=C["arbitration"], label="taxed volume implied by URA excise")
+    a.plot(x, c.iip_cement_idx, marker="o", color=C["construction"], label="UBOS production index (ISIC 2394)")
+    a.axhline(100, color=C["neutral"], lw=0.8)
+    fy_ticks(a, c.index, every=1)
+    a.legend(frameon=False, fontsize=8, loc="upper left")
+    a.set_ylabel("FY2017/18 = 100")
+    a.set_title("(a) Two measures of domestic cement", loc="left", fontsize=10)
+    b.bar(x, c.implied_taxed_mt, color=C["arbitration"], width=0.62)
+    fy_ticks(b, c.index)
+    b.set_ylabel("million tonnes")
+    b.set_title("(b) Excise-implied taxed volume", loc="left", fontsize=10)
+    for ax in (a, b):
+        st.style(ax)
+    st.fig(fig, "fig2_cement.png",
+           "Domestic cement volume implied by URA excise collections (collections ÷ UGX 10,000 per tonne) against the "
+           "UBOS index of industrial production for cement, lime and plaster, fiscal-year averages rebased to "
+           "FY2017/18 = 100 (a), and the implied volume in million tonnes (b). Sources: URA annual data books; UBOS "
+           "Index of Industrial Production; author's calculations.")
+
+    g = trade[trade.value_usd_m >= 2].sort_values("value_usd_m")
+    fig, a = plt.subplots(figsize=(9, 4.4))
+    y = np.arange(len(g))
+    a.barh(y, g.value_usd_m, height=0.62,
+           color=[C["arbitration"] if "cement" in n else C["construction"] for n in g.group])
+    a.set_yticks(y, g.group, fontsize=8.5)
+    a.set_xlim(0, g.value_usd_m.max() * 1.7)
+    a.set_xticks(range(0, int(g.value_usd_m.max()) + 1, 100))
+    for yy, (_, r) in zip(y, g.iterrows()):
+        a.text(r.value_usd_m + 3, yy, f"{r.value_usd_m:,.0f}", va="center", fontsize=8)
+        a.text(g.value_usd_m.max() * 1.2, yy, r.top_origins.split(";")[0].replace("United Arab Emirates", "UAE"),
+               va="center", fontsize=8, color=C["ink2"])
+    a.text(g.value_usd_m.max() * 1.2, len(g) - 0.4, "largest recorded origin", fontsize=8, color=C["ink2"])
+    a.set_xlabel("US$ million")
+    st.style(a, grid="x")
+    st.fig(fig, "fig3_input_imports_2021.png",
+           "Recorded imports of construction inputs by HS group, calendar 2021, US$ million at the 2021 average rate, "
+           "with the largest recorded country of origin and its share of the group (cement and clinker shaded "
+           "differently). Values only; the quantities in the source are not usable. Source: URA (2022); author's "
+           "calculations.")
+
+    fig, (a, b) = plt.subplots(1, 2, figsize=(9, 3.6), gridspec_kw={"width_ratios": [1.3, 1]})
+    for k, (grp, col, name) in enumerate((("iron_steel", C["construction"], "iron and steel (SITC 67)"),
+                                          ("machinery", C["arbitration"], "machinery (SITC 72 + 74)"))):
+        v = corr[corr.group == grp].set_index("lead_q").r_ex_covid
+        a.bar(v.index + (k - 0.5) * 0.4, v, 0.38, color=col, label=name)
+    a.axhline(0, color=C["neutral"], lw=0.8)
+    a.set_xticks(range(5), ["0", "1", "2", "3", "4"])
+    a.set_xlabel("quarters by which imports lead")
+    a.set_ylabel("Pearson r")
+    a.legend(frameon=False, fontsize=8)
+    a.set_title("(a) Correlation with construction growth", loc="left", fontsize=10)
+    names = {"iron_steel": "iron and steel", "nonmetallic": "non-metallic minerals", "machinery": "machinery",
+             "iron_steel_machinery": "iron, steel + machinery*"}
+    order = ["iron_steel", "nonmetallic", "machinery", "iron_steel_machinery"]
+    e = rmse.set_index("group")
+    yv = np.arange(len(order))[::-1]
+    b.barh(yv, e.loc[order, "rmse_imp"], height=0.55, color=C["construction"])
+    b.axvline(e.rmse_ar.iloc[0], color=C["ink"], ls="--", lw=1)
+    b.set_yticks(yv, [names[g] for g in order], fontsize=8.5)
+    b.set_xlabel(f"RMSE, pp (dashed: AR(1) baseline, {e.rmse_ar.iloc[0]:.1f})")
+    b.set_title("(b) Out-of-sample forecast error", loc="left", fontsize=10)
+    for ax, grid in ((a, "y"), (b, "x")):
+        st.style(ax, grid=grid)
+    st.fig(fig, "fig4_imports_lead.png",
+           "Correlation between year-on-year growth in quarterly import values and in construction real value added, "
+           "with imports leading by 0–4 quarters, April 2020–June 2021 excluded (a); root-mean-square error of "
+           "one-quarter-ahead forecasts of construction growth, 2021Q1–2026Q2, from an expanding-window AR(1) and with "
+           "import growth added (b). *Specification fixed before estimation. Sources: UBOS composition of imports; "
+           "UBOS Quarterly GDP; author's calculations.")
+
+
 def main():
     ubos, ura, xc, m = load()
     tax = tax_intensity(ubos, ura)
@@ -252,22 +368,29 @@ def main():
     corr, oos, rmse, latest = imports_lead(ubos)
     audit, diesel = data_audit(ura, xc, ubos, m, tax)
     trade_groups, trade_chk, fx21 = trade_2021(ubos, m)
-    for k, v in {"tri_tax_intensity": tax, "tri_cement": cem, "tri_imports_corr": corr, "tri_imports_oos": oos,
-                 "tri_imports_rmse": rmse, "tri_imports_latest": latest, "tri_data_audit": audit, "tri_diesel": diesel,
-                 "tri_trade_2021_groups": trade_groups, "tri_trade_2021_sitc_check": trade_chk}.items():
-        v.to_csv(D / f"{k}.csv", index=k not in ("tri_imports_corr", "tri_data_audit", "tri_imports_rmse", "tri_trade_2021_groups",
-                                          "tri_trade_2021_sitc_check"))
-    pd.set_option("display.width", 200)
-    print("tax intensity:\n", tax[["construction_tax", "tax_share_pct", "tax_share_sectorised_pct", "gdp_share_pct",
-                                   "tax_per_100_va", "relative_intensity", "vat_per_100_va", "comparable"]].round(2))
-    print("\ncement:\n", cem.round(2))
-    print("\nimports lead (r by lead):\n", corr.pivot(index="lead_q", columns="group", values="r_ex_covid").round(2))
-    print("\nout-of-sample RMSE (pp):\n", rmse.round(2))
-    print("\nlatest:\n", latest.round(1).T)
-    print("\naudit:\n", audit.round(1).to_string())
-    print("\ndiesel:\n", diesel.round(1))
-    print(f"\nURA imports 2021 (UGX/US$ {fx21:,.0f}):\n", trade_groups.round(1).to_string(index=False))
-    print("\nHS vs SITC 2021:\n", trade_chk.round(1).to_string(index=False))
+    tquality = pd.read_csv(T / "ura_trade_2021_audit.csv")
+
+    st = Stage("13_fiscal_triangulation", "Stage 13 — Fiscal and trade triangulation: UBOS x URA (RQ2, RQ4, RQ9)")
+    st.text("Construction-sector tax, cement, imports and data quality from UBOS and URA sources. MoFPED vote-level "
+            "releases and arrears are not yet collected. All estimates are descriptive or associational.")
+    figures(st, tax, cem, corr, rmse, trade_groups)
+    st.table(tax.round(2), "tax_intensity", "Tax intensity by fiscal year")
+    st.table(cem.round(2), "cement", "Cement: output index, excise-implied volume, real VAT")
+    st.table(trade_groups.round(1), "trade_2021_groups", f"Construction-input imports 2021 (UGX/US$ {fx21:,.0f})",
+             index=False)
+    st.table(trade_chk.round(1), "trade_2021_sitc_check", "URA HS values against UBOS SITC, 2021", index=False)
+    st.table(tquality.round(1), "trade_2021_quality", "URA imports trade report 2021: quality checks", index=False)
+    st.table(corr.round(3), "imports_corr", "Import growth vs construction growth: correlation by lead", index=False)
+    st.table(rmse.round(2), "imports_rmse", "Out-of-sample forecast errors", index=False)
+    oos.round(2).to_csv(st.dir / "imports_oos.csv")
+    latest.round(2).to_csv(st.dir / "imports_latest.csv")
+    st.table(audit.round(2), "data_audit", "URA/UBOS consistency checks", index=False)
+    st.table(diesel.round(2), "diesel", "Diesel: URA pump price vs CIPI diesel sub-index")
+    st.text("**Caveats.** Short annual URA series (eight comparable years); ratios reflect tax policy and sector "
+            "attribution as well as compliance; the cement excise rate is taken from the parliamentary committee "
+            "report and should be checked against the gazetted schedules; the HS–SITC concordance is approximate; "
+            "the out-of-sample test covers 22 quarters.")
+    st.write()
 
 
 if __name__ == "__main__":
