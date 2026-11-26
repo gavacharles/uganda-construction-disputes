@@ -39,8 +39,8 @@ def main():
     y = np.arange(len(sh))
     for i, (_, r) in enumerate(sh.iterrows()):
         up = r["2026"] >= r["2015–2025"]
-        ax.plot([r["2015–2025"], r["2026"]], [i, i], color=C["arbitration"] if up else C["construction"], lw=2, alpha=0.6)
-    ax.scatter(sh["2015–2025"], y, color="#a7a6a2", s=36, zorder=3, label="2015–2025 average")
+        ax.plot([r["2015–2025"], r["2026"]], [i, i], color=C["up"] if up else C["down"], lw=2, alpha=0.6)
+    ax.scatter(sh["2015–2025"], y, color=C["neutral"], s=36, zorder=3, label="2015–2025 average")
     ax.scatter(sh["2026"], y, color=C["ink"], s=36, zorder=3, label="2026")
     ax.set_yticks(y, sh.index, fontsize=8.5)
     ax.set_xlabel("% of construction-related decisions with the cause in issue")

@@ -17,7 +17,7 @@ import statsmodels.api as sm
 import statsmodels.formula.api as smf
 from statsmodels.stats.multitest import multipletests
 
-from src.analysis.common import C, CAUSE_LABEL, CAUSES, STREAMS, Stage, load, plt
+from src.analysis.common import C, CAUSE_LABEL, CAUSES, NAME, SERIES6, STREAMS, Stage, load, plt
 from src.config import INTERIM
 from src.temporal.register_temporal import F26, LAST, pettitt, ulii_totals
 
@@ -191,9 +191,9 @@ def main():
         ax1.scatter(r.effective.year + r.effective.dayofyear / 365, ymap[r["subarea"]], s=22,
                     color=C["arbitration"] if r.group.startswith("Arbitration") else C["construction"], zorder=3)
     ax1.set_yticks(list(ymap.values()), list(ymap.keys()), fontsize=6.5)
-    ax1.set_title("Enactments in force (register; orange = arbitration/ADR, blue = construction)", fontsize=9, loc="left")
+    ax1.set_title(f"Enactments in force (register; {NAME['arbitration']} = arbitration/ADR, {NAME['construction']} = construction)", fontsize=9, loc="left")
     s.style(ax1, grid="x")
-    for col, colr in zip(share.columns[:6], ["#eb6834", "#2a78d6", "#1baf7a", "#7a5cc4", "#c4a35c", "#52514e"]):
+    for col, colr in zip(share.columns[:6], SERIES6):
         ax2.plot(share.index, 100 * share[col], marker="o", ms=3, color=colr, label=col)
     ax2.set_ylabel("% of decisions citing")
     ax2.legend(frameon=False, fontsize=7, ncol=2, loc="upper left")

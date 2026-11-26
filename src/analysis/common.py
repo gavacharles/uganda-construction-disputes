@@ -1,4 +1,6 @@
 """Shared helpers for the analysis stages: data loading, house style, 300-dpi figures with captions, caveats."""
+import os
+
 import matplotlib
 
 matplotlib.use("Agg")
@@ -7,8 +9,23 @@ import pandas as pd  # noqa: E402
 
 from src.config import OUT, PROCESSED, SEED  # noqa: E402,F401
 
-C = {"construction": "#2a78d6", "both": "#1baf7a", "arbitration": "#eb6834",
-     "ink": "#0b0b0b", "ink2": "#52514e", "grid": "#e5e5e2", "accent": "#7a5cc4"}
+# Theme: default (academic outputs, outputs/analysis/) or UGCD_THEME=hq (Hove & Quill brand, outputs/analysis_hq/,
+# used for the sector report). Only colours and the output folder change; the analysis is identical.
+THEME = os.environ.get("UGCD_THEME", "default")
+if THEME == "hq":
+    C = {"construction": "#B08A33", "both": "#9E3F3F", "arbitration": "#2B67A8", "ink": "#14120F", "ink2": "#57534B",
+         "grid": "#E7E3D8", "accent": "#9E3F3F", "up": "#9E3F3F", "down": "#2B67A8", "neutral": "#B3AC9F"}
+    SERIES6 = ["#B08A33", "#2B67A8", "#9E3F3F", "#57534B", "#D2AC58", "#7d9cc0"]
+    SEQ = matplotlib.colors.LinearSegmentedColormap.from_list("hq_gold", ["#FAF8F4", "#D2AC58", "#8A6B22", "#3d2f0e"])
+    SEQ_SCORE = matplotlib.colors.LinearSegmentedColormap.from_list("hq_score", ["#EFE3C4", "#B08A33", "#3d2f0e"])
+    NAME = {"construction": "gold", "arbitration": "blue"}
+else:
+    C = {"construction": "#2a78d6", "both": "#1baf7a", "arbitration": "#eb6834", "ink": "#0b0b0b", "ink2": "#52514e",
+         "grid": "#e5e5e2", "accent": "#7a5cc4", "up": "#eb6834", "down": "#2a78d6", "neutral": "#a7a6a2"}
+    SERIES6 = ["#eb6834", "#2a78d6", "#1baf7a", "#7a5cc4", "#c4a35c", "#52514e"]
+    SEQ, SEQ_SCORE = "Blues", "viridis"
+    NAME = {"construction": "blue", "arbitration": "orange"}
+ANALYSIS_DIR = OUT / ("analysis_hq" if THEME == "hq" else "analysis")
 STREAMS = ["construction", "both", "arbitration"]
 CAUSES = ["c_payment", "c_final_account", "c_variations", "c_delay_eot", "c_lds", "c_termination", "c_defects",
           "c_guarantees", "c_procurement", "c_site_land", "c_prof_fees", "c_price_adjust", "c_force_majeure", "c_fraud"]
@@ -36,7 +53,7 @@ class Stage:
     """Collects figures (with captions) and tables for one analysis stage and writes summary.md."""
 
     def __init__(self, name, title):
-        self.dir = OUT / "analysis" / name
+        self.dir = ANALYSIS_DIR / name
         self.dir.mkdir(parents=True, exist_ok=True)
         self.title, self.parts, self.n_fig = title, [], 0
 

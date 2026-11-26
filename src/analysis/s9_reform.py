@@ -14,7 +14,7 @@ import numpy as np
 import pandas as pd
 from scipy.stats import kendalltau
 
-from src.analysis.common import C, CAUSE_LABEL, CAUSES, OUT, Stage, load, plt
+from src.analysis.common import C, CAUSE_LABEL, CAUSES, OUT, SEQ_SCORE, Stage, load, plt
 
 warnings.filterwarnings("ignore")
 USD_UGX = 3700
@@ -115,7 +115,7 @@ def main():
 
     fig, ax = plt.subplots(figsize=(6.6, 4.2))
     sc = ax.scatter(m["prevalence %"], m["unrecovered share"], s=40 + 8 * m["median claim (UGX m)"].clip(upper=60),
-                    c=m["score (equal)"], cmap="viridis", edgecolors=C["ink2"], linewidths=0.5)
+                    c=m["score (equal)"], cmap=SEQ_SCORE, edgecolors=C["ink2"], linewidths=0.5)
     for name, r in m.iterrows():
         ax.annotate(name, (r["prevalence %"], r["unrecovered share"]), fontsize=7, xytext=(4, 3), textcoords="offset points")
     fig.colorbar(sc, ax=ax, label="priority score (equal weights)")

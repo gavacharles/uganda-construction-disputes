@@ -21,3 +21,4 @@ shap==0.51.0
 geopandas==1.2.0
 libpysal==4.14.1
 esda==2.9.0
+pytest

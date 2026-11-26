@@ -22,7 +22,7 @@ from libpysal.weights import Queen
 from scipy.stats import mannwhitneyu, spearmanr
 from shapely.geometry import LineString
 
-from src.analysis.common import C, PROCESSED, SEED, Stage, load, plt
+from src.analysis.common import C, PROCESSED, SEED, SEQ, THEME, Stage, load, plt
 from src.code.rule_coder import load_texts
 from src.code.segment import segment
 from src.config import ROOT
@@ -68,7 +68,8 @@ def main():
     texts = load_texts(a)
     loc = [locate(texts[c], names) for c in a.case_id]
     a["district"], a["loc_score"] = [x[0] for x in loc], [x[1] for x in loc]
-    a[["case_id", "district", "loc_score"]].to_parquet(PROCESSED / "case_locations.parquet", index=False)
+    if THEME == "default":   # the themed (report) run must not rewrite processed data
+        a[["case_id", "district", "loc_score"]].to_parquet(PROCESSED / "case_locations.parquet", index=False)
     con = a[a.stream.isin(["construction", "both"])]
     s.text(f"Located decisions: **{a.district.notna().sum()} of {len(a)}** ({a.district.notna().mean():.0%}); construction-related "
            f"{con.district.notna().sum()} of {len(con)}. Unlocated decisions name no district in the facts or issues (common in "
@@ -98,10 +99,10 @@ def main():
            f"cold spots: {', '.join(g[g.hotspot == 'cold spot'].district) or 'none'}.")
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(8.6, 4.6))
-    g.plot(column="rate_100k", cmap="Blues", linewidth=0.2, edgecolor="#999", ax=ax1, legend=True,
+    g.plot(column="rate_100k", cmap=SEQ, linewidth=0.2, edgecolor="#999", ax=ax1, legend=True,
            legend_kwds={"shrink": 0.6, "label": "decisions per 100,000"}, missing_kwds={"color": "#eee"})
     ax1.set_title("Rate per 100,000 people", fontsize=9)
-    colors = {"hot spot": C["arbitration"], "cold spot": C["construction"], "not significant": "#e9e9e6"}
+    colors = {"hot spot": C["up"], "cold spot": C["down"], "not significant": "#e9e9e6"}
     g.plot(color=g.hotspot.map(colors), linewidth=0.2, edgecolor="#999", ax=ax2)
     for k, v in colors.items():
         ax2.scatter([], [], color=v, label=k, s=30)
