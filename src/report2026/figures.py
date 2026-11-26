@@ -285,6 +285,35 @@ def fig_cement_triangulation():
          "Quill calculations.", top=0.76)
 
 
+def fig_trade_2021():
+    g = pd.read_csv(D / "tri_trade_2021_groups.csv")
+    g = g[g.value_usd_m >= 2].sort_values("value_usd_m")
+    fig, a = plt.subplots(figsize=(W, 3.45))
+    y = np.arange(len(g))
+    cols = [PAL["s2"] if "clinker" in n or n == "cement" else PAL["s1"] for n in g.group]
+    a.barh(y, g.value_usd_m, color=cols, height=0.62)
+    a.set_yticks(y, g.group, fontsize=8)
+    a.grid(axis="y", visible=False)
+    a.set_xlim(0, g.value_usd_m.max() * 1.75)
+    a.set_xticks(range(0, int(g.value_usd_m.max()) + 1, 100))
+    fig.subplots_adjust(left=0.36, right=0.98)
+    for yy, (_, r) in zip(y, g.iterrows()):
+        origin = r.top_origins.split(";")[0].replace("United Arab Emirates", "UAE").replace(
+            "United Republic of Tanzania", "Tanzania")
+        a.text(r.value_usd_m + 4, yy, f"{r.value_usd_m:,.0f}", va="center", fontsize=8, color=INK["primary"])
+        a.text(g.value_usd_m.max() * 1.22, yy, origin, va="center", fontsize=7.5, color=INK["secondary"])
+    a.text(g.value_usd_m.max() * 1.22, len(g) - 0.45, "largest recorded origin", fontsize=7.5, color=INK["muted"],
+           va="bottom")
+    a.set_xlabel("US$ million, 2021", fontsize=8, color=INK["muted"], loc="left")
+    headline(fig, "Cement relies on imported clinker; most steel and machinery comes from Asia",
+             "Recorded imports of construction inputs, 2021, by HS group (cement and clinker in blue)", y=0.985)
+    save(fig, "fig_5_3_input_imports_2021.png",
+         "Recorded imports of construction inputs by HS group, calendar 2021, US$ million (converted at the 2021 "
+         "average rate), with the largest recorded country of origin and its share of the group. Groups under "
+         "US$2 million (dump trucks; sand, stone and aggregates) are omitted. Values only: the quantities in the "
+         "source are not usable. Source: URA Annual Imports Trade Report 2021; Hove & Quill calculations.", top=0.83)
+
+
 def fig_imports_lead():
     r = pd.read_csv(D / "tri_imports_corr.csv")
     e = pd.read_csv(D / "tri_imports_rmse.csv").set_index("group")
@@ -321,7 +350,7 @@ def fig_imports_lead():
                ha="right" if win else "left", fontsize=7.5, color=INK["surface"] if win else INK["primary"])
     headline(fig, "Steel imports move with construction in the same quarter, but add little as a forecast",
              "UBOS imports (US$ value, y/y growth) against construction real value added (y/y), quarterly, 2017–2026")
-    save(fig, "fig_5_3_imports_lead.png",
+    save(fig, "fig_5_4_imports_lead.png",
          "Left: correlation between year-on-year growth in quarterly imports and in construction real value added, with "
          "imports taken in the same quarter or one to four quarters earlier (April 2020–June 2021 excluded). Right: "
          "root-mean-square error of one-quarter-ahead forecasts of construction growth, January 2021–June 2026, from an "
@@ -686,6 +715,7 @@ def main():
     fig_disputes(ix)
     fig_tax_intensity()
     fig_cement_triangulation()
+    fig_trade_2021()
     fig_imports_lead()
     lines = ["# Figure captions — sector report 2026", ""]
     for i, (n, c) in enumerate(sorted(CAPTIONS)):

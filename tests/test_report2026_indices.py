@@ -111,3 +111,22 @@ def test_triangulate_fiscal_year_sums_need_full_years():
     q = pd.Series(1.0, index=pd.date_range("2024-07-01", periods=6, freq="QS-JUL"))
     s = fy_sum(q, 4)
     assert s["2024/25"] == 4 and np.isnan(s["2025/26"])
+
+
+def test_ura_trade_blocks_restart_and_match_country_totals():
+    from src.report2026.parse_ura_trade import blocks, match_countries
+    lines = ["           2523.10.00   Cement clinkers                      10.00   50,000,000    KG",
+             "           7214.20.00   Bars and rods                         5.00       17,123    KG",
+             "           2523.10.00   Cement clinkers                       2.00   50,000,000    KG",
+             "           7210.70.00   Coated flat-rolled                    1.00          500    KG"]
+    rows = blocks(lines)
+    assert rows.block.tolist() == [0, 0, 1, 1]
+    ctry = pd.DataFrame({"country": ["Kenya", "Japan", "Oman"], "total": [15.05, 3.0, 99.0]})
+    got = match_countries(rows, ctry).groupby("block").country.first().tolist()
+    assert got == ["Kenya", "Japan"]
+
+
+def test_hs_group_mask_prefix_and_exclusion():
+    from src.report2026.triangulate import _hs_mask
+    codes = pd.Series(["7204.10.00", "7214.20.00", "7306.30.00", "2523.10.00"])
+    assert _hs_mask(codes, ["72", "7306"], ["7204"]).tolist() == [False, True, True, False]

@@ -11,6 +11,8 @@
                  real value added? Correlation of year-on-year growth at leads 0-4 quarters, and an out-of-sample test of
                  a nowcast (expanding-window OLS; AR(1) baseline), and the latest import reading for the quarter after
                  the last GDP release.
+  trade_2021     URA imports trade report 2021 (HS 8-digit values; quantities unusable): construction inputs by group and
+                 recorded origin, and a check against UBOS SITC 66 and 67 for the same calendar year.
   data_audit     revisions across URA data books, totals that do not add, URA- vs UBOS-reported GDP shares, and the URA
                  diesel pump price against the CIPI diesel sub-index.
 Outputs: data/processed/sector2026/tri_*.csv
@@ -26,6 +28,25 @@ EXCISE_UGX_PER_TONNE = 500 * 20        # UGX 500 per 50 kg bag (Excise Duty Act 
 EARLY = ("2015/16", "2016/17")         # URA stand-alone table: different basis (see docstring)
 IMPORT_GROUPS = {"iron_steel": ["imp_iron_steel"], "machinery": ["imp_general_machinery", "imp_specialised_machinery"],
                  "nonmetallic": ["imp_nonmetallic_minerals"]}
+# construction inputs by HS prefix (HS 2017; 8-digit codes matched on their leading digits)
+HS_GROUPS = {
+    "cement clinker": ["252310"], "cement": ["252321", "252329", "252330", "252390"],
+    "lime, gypsum and plaster": ["2520", "2522"], "sand, stone and aggregates": ["2505", "2515", "2516", "2517"],
+    "bitumen and asphalt": ["271320", "2714", "2715"],
+    "steel: flat-rolled incl. roofing sheet": ["7208", "7209", "7210", "7211", "7212"],
+    "steel: bars, rods and sections": ["7213", "7214", "7215", "7216", "7217"],
+    "steel: billets and semi-finished": ["7206", "7207"],
+    "steel tubes, structures and fittings": ["7303", "7304", "7305", "7306", "7307", "7308", "7314", "7317"],
+    "ceramic tiles and sanitary ware": ["6907", "6908", "6910"], "flat glass": ["7003", "7004", "7005"],
+    "paints and varnishes": ["3208", "3209", "3210"], "electrical cable": ["8544"],
+    "earthmoving and construction machinery": ["8426", "8429", "8430", "8474"], "dump trucks": ["870410"]}
+# approximate HS -> SITC Rev.4 concordance for the cross-check with UBOS (UBOS series are US$ '000)
+SITC_CHECK = {
+    "imp_iron_steel": {"label": "SITC 67 iron and steel", "include": ["72", "7302", "7303", "7304", "7305", "7306"],
+                       "exclude": ["7204"]},
+    "imp_nonmetallic_minerals": {"label": "SITC 66 non-metallic mineral manufactures",
+                                 "include": ["2522", "2523", "68", "69", "70", "7101", "7102", "7103", "7104"],
+                                 "exclude": ["6910", "7019"]}}
 OOS_START = "2021-01-01"                # first quarter forecast out of sample
 COVID = ("2020-04-01", "2021-06-01")    # quarters whose y/y growth is dominated by the lockdowns
 
@@ -146,6 +167,37 @@ def imports_lead(ubos):
     return corr, oos.set_index("date"), rmse, latest
 
 
+def _hs_mask(codes, include, exclude=()):
+    digits = codes.str.replace(".", "", regex=False)
+    inc = digits.str.startswith(tuple(include))
+    return inc & ~digits.str.startswith(tuple(exclude)) if exclude else inc
+
+
+def trade_2021(ubos, m):
+    rows = pd.read_csv(D / "ura_trade_2021.csv", dtype={"hs8": str})
+    summ = pd.read_csv(D / "ura_trade_2021_summary.csv", dtype={"hs8": str})
+    fx = m.exchange_rate.loc["2021-01-01":"2021-12-01"].mean()
+    out = []
+    for g, pref in HS_GROUPS.items():
+        r = rows[_hs_mask(rows.hs8, pref)]
+        total = summ[_hs_mask(summ.hs8, pref)].value_ugx_bn.sum()
+        by = r[r.country != "unmatched"].groupby("country").value_ugx_bn.sum().sort_values(ascending=False)
+        shares = by / r.value_ugx_bn.sum() if r.value_ugx_bn.sum() else by
+        top = "; ".join(f"{c} {100 * v:.0f}%" for c, v in shares.head(3).items())
+        out.append({"group": g, "value_ugx_bn": total, "value_usd_m": total * 1e3 / fx, "top_origins": top,
+                    "top1_share_pct": 100 * shares.iloc[0] if len(shares) else np.nan,
+                    "unmatched_share_pct": 100 * r[r.country == "unmatched"].value_ugx_bn.sum() / r.value_ugx_bn.sum()
+                    if r.value_ugx_bn.sum() else np.nan})
+    groups = pd.DataFrame(out).sort_values("value_ugx_bn", ascending=False)
+    chk = []
+    for series, spec in SITC_CHECK.items():
+        ura = summ[_hs_mask(summ.hs8, spec["include"], spec["exclude"])].value_ugx_bn.sum() * 1e3 / fx
+        ub = ubos[series].loc["2021-01-01":"2021-12-01"]
+        chk.append({"series": spec["label"], "ura_hs_usd_m": ura, "ubos_sitc_usd_m": ub.sum() / 1e3,
+                    "ubos_months": int(ub.notna().sum()), "diff_pct": 100 * (ura / (ub.sum() / 1e3) - 1)})
+    return groups, pd.DataFrame(chk), fx
+
+
 def data_audit(ura, xc, ubos, m, tax):
     rows = []
     multi = xc.groupby(["series", "fy"]).value.agg(["size", "min", "max"])
@@ -199,9 +251,12 @@ def main():
     cem = cement(ubos, ura)
     corr, oos, rmse, latest = imports_lead(ubos)
     audit, diesel = data_audit(ura, xc, ubos, m, tax)
+    trade_groups, trade_chk, fx21 = trade_2021(ubos, m)
     for k, v in {"tri_tax_intensity": tax, "tri_cement": cem, "tri_imports_corr": corr, "tri_imports_oos": oos,
-                 "tri_imports_rmse": rmse, "tri_imports_latest": latest, "tri_data_audit": audit, "tri_diesel": diesel}.items():
-        v.to_csv(D / f"{k}.csv", index=k not in ("tri_imports_corr", "tri_data_audit", "tri_imports_rmse"))
+                 "tri_imports_rmse": rmse, "tri_imports_latest": latest, "tri_data_audit": audit, "tri_diesel": diesel,
+                 "tri_trade_2021_groups": trade_groups, "tri_trade_2021_sitc_check": trade_chk}.items():
+        v.to_csv(D / f"{k}.csv", index=k not in ("tri_imports_corr", "tri_data_audit", "tri_imports_rmse", "tri_trade_2021_groups",
+                                          "tri_trade_2021_sitc_check"))
     pd.set_option("display.width", 200)
     print("tax intensity:\n", tax[["construction_tax", "tax_share_pct", "tax_share_sectorised_pct", "gdp_share_pct",
                                    "tax_per_100_va", "relative_intensity", "vat_per_100_va", "comparable"]].round(2))
@@ -211,6 +266,8 @@ def main():
     print("\nlatest:\n", latest.round(1).T)
     print("\naudit:\n", audit.round(1).to_string())
     print("\ndiesel:\n", diesel.round(1))
+    print(f"\nURA imports 2021 (UGX/US$ {fx21:,.0f}):\n", trade_groups.round(1).to_string(index=False))
+    print("\nHS vs SITC 2021:\n", trade_chk.round(1).to_string(index=False))
 
 
 if __name__ == "__main__":
