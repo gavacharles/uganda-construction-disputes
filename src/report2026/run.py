@@ -1,4 +1,4 @@
-"""Sector report 2026: refresh everything in order (fetch -> parse -> panel -> indices -> scorecard -> figures),
+"""Sector report 2026: refresh everything in order (fetch -> parse -> panel -> indices -> UBOS x URA triangulation -> scorecard -> figures),
 re-render the disputes figures from the analysis stages in the Hove & Quill theme, and build the Word report.
 Usage: python -m src.report2026.run [--refresh] [--no-docx]   (--refresh re-downloads all sources)
 """
@@ -8,7 +8,7 @@ import subprocess
 import sys
 
 from src.config import OUT, ROOT
-from src.report2026 import build_panel, fetch, figures, indices, parse_ubos, parse_ura, scorecard
+from src.report2026 import build_panel, fetch, figures, indices, parse_ubos, parse_ura, scorecard, triangulate
 
 REPORT = OUT / "writing" / "sector_report_2026"
 STAGE_FIGS = {  # analysis stage -> figures reused in chapters 6-8 (rendered with UGCD_THEME=hq into outputs/analysis_hq)
@@ -34,7 +34,7 @@ def stage_figures():
 
 def main(refresh=False, docx=True):
     fetch.main(refresh=refresh)
-    for mod in (parse_ura, parse_ubos, build_panel, indices, scorecard, figures):
+    for mod in (parse_ura, parse_ubos, build_panel, indices, triangulate, scorecard, figures):
         print(f"\n== {mod.__name__}")
         mod.main()
     stage_figures()

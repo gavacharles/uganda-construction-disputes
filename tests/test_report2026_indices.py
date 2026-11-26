@@ -85,3 +85,29 @@ def test_ura_header_typo_and_numbers():
 def test_ubos_upload_rank_orders_by_month_year():
     names = ["CPI-October-2025-Excel-Tables.xlsx", "09_2026CPI_September_2026.xlsx", "11_2026CPI_October_2026.xlsx"]
     assert max(names, key=upload_rank) == "11_2026CPI_October_2026.xlsx"
+
+
+def test_ura_sector_totals_sum_rows_and_flag_unsectorised():
+    from src.report2026.parse_ura import sector_totals
+    lines = ["Table 1.1.3 Gross Revenue Collections, (UGX Bn) by economic sector",
+             "  SECTORS        FY2021/22   FY2022/23",
+             "Construction        100.00      200.00",
+             "Public administration and defense;",
+             "                     10.50       20.50",
+             "Un sectorized        5.00        6.00",
+             "TOTAL              115.50      226.50",
+             "Source: Uganda Revenue Authority"]
+    got = []
+    sector_totals(lines, 0, ["2021/22", "2022/23"], lambda s, y, v, k: got.append((s, v)))
+    d = dict(got)
+    assert d["sector_rows_sum"] == [115.5, 226.5]
+    assert d["sector_table_total"] == [115.5, 226.5]
+    assert d["unsectorised"] == [5.0, 6.0]
+
+
+def test_triangulate_fiscal_year_sums_need_full_years():
+    from src.report2026.triangulate import fy_of, fy_sum
+    assert fy_of(pd.Timestamp("2025-07-01")) == "2025/26" and fy_of(pd.Timestamp("2026-04-01")) == "2025/26"
+    q = pd.Series(1.0, index=pd.date_range("2024-07-01", periods=6, freq="QS-JUL"))
+    s = fy_sum(q, 4)
+    assert s["2024/25"] == 4 and np.isnan(s["2025/26"])

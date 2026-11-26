@@ -209,6 +209,127 @@ def fig_payment(ix, ura):
          top=0.76)
 
 
+# ---------- triangulation (UBOS x URA) ----------
+def fig_tax_intensity():
+    t = pd.read_csv(D / "tri_tax_intensity.csv", index_col=0)
+    t = t[t.comparable]
+    x = np.arange(len(t))
+    lab = [f"{y[2:4]}/{y[-2:]}" for y in t.index]
+    fig, (a, b) = plt.subplots(1, 2, figsize=(W, 3.2), gridspec_kw={"wspace": 0.3})
+    for col, c, name in (("gdp_share_pct", PAL["s2"], "share of GDP"), ("tax_share_pct", PAL["s1"], "share of tax")):
+        a.plot(x, t[col], color=c, marker="o", ms=3.5, mec=INK["surface"], mew=0.8, label=name)
+        end_label(a, x[-1], t[col].iloc[-1], f"{t[col].iloc[-1]:.1f}% {name}", c, dx=6)
+    a.set_ylim(0, 7)
+    a.set_xlim(-0.4, len(t) + 2.6)
+    a.set_xticks(x, lab, fontsize=7.5)
+    for lbl in a.get_xticklabels()[1::2]:
+        lbl.set_visible(False)
+    a.grid(axis="x", visible=False)
+    yfmt(a, "{x:.0f}%")
+    a.set_title("Construction's share of GDP and of tax", loc="left", color=INK["secondary"], fontsize=9)
+    a.legend(loc="lower left", ncol=2, fontsize=7.5)
+    w = 0.38
+    b.bar(x - w / 2 - 0.02, t.tax_per_100_va, w, color=PAL["s1"], label="construction (per 100 of value added)")
+    b.bar(x + w / 2 + 0.02, t.economy_tax_per_100_gdp, w, color=PAL["grey"], label="whole economy (per 100 of GDP)")
+    b.set_xticks(x, lab, fontsize=7.5)
+    for lbl in b.get_xticklabels()[1::2]:
+        lbl.set_visible(False)
+    b.grid(axis="x", visible=False)
+    b.set_ylim(0, 19)
+    b.set_title("Tax collected per UGX 100 of output", loc="left", color=INK["secondary"], fontsize=9)
+    b.legend(loc="upper left", fontsize=7.5)
+    b.annotate(f"{t.tax_per_100_va.iloc[-1]:.1f}", (x[-1] - w / 2, t.tax_per_100_va.iloc[-1]), xytext=(0, 2),
+               textcoords="offset points", ha="center", fontsize=8)
+    b.annotate(f"{t.economy_tax_per_100_gdp.iloc[-1]:.1f}", (x[-1] + w / 2, t.economy_tax_per_100_gdp.iloc[-1]),
+               xytext=(0, 2), textcoords="offset points", ha="center", fontsize=8)
+    headline(fig, "Construction is taxed at less than half the economy-wide rate, and the gap is not closing",
+             "URA gross collections from ISIC F against UBOS construction value added, current prices, by fiscal year")
+    save(fig, "fig_2_2_tax_intensity.png",
+         "Left: construction's share of gross URA collections and of GDP at current prices, FY2017/18–FY2024/25. "
+         "Right: tax collected from the construction sector per UGX 100 of construction value added, against total "
+         "collections per UGX 100 of GDP. Fiscal-year sums of quarterly value added. FY2015/16–FY2016/17 are omitted: "
+         "they come from a URA table on a different basis. Sources: URA annual data books; UBOS Quarterly GDP "
+         "(current prices); Hove & Quill calculations.", top=0.76)
+
+
+def fig_cement_triangulation():
+    c = pd.read_csv(D / "tri_cement.csv", index_col=0).loc["2017/18":]
+    x = np.arange(len(c))
+    lab = [f"{y[2:4]}/{y[-2:]}" for y in c.index]
+    fig, (a, b) = plt.subplots(1, 2, figsize=(W, 3.2), gridspec_kw={"width_ratios": [1.5, 1], "wspace": 0.3})
+    for col, colr, name in (("implied_taxed_mt_idx", PAL["s2"], "taxed volume (URA excise)"),
+                            ("iip_cement_idx", PAL["s1"], "output (UBOS index)")):
+        a.plot(x, c[col], color=colr, marker="o", ms=3.5, mec=INK["surface"], mew=0.8, label=name)
+        end_label(a, x[-1], c[col].iloc[-1], f"{c[col].iloc[-1]:.0f}", colr, dx=6)
+    a.axhline(100, color=INK["muted"], lw=0.6)
+    a.set_xticks(x, lab, fontsize=7.5)
+    a.grid(axis="x", visible=False)
+    a.set_xlim(-0.4, len(c) - 0.2)
+    a.set_title("Cement, FY2017/18 = 100", loc="left", color=INK["secondary"], fontsize=9)
+    a.legend(loc="upper left", fontsize=7.5)
+    b.bar(x, c.implied_taxed_mt, color=PAL["s2"], width=0.62)
+    b.set_xticks(x, lab, fontsize=7.5)
+    for lbl in b.get_xticklabels()[1::2]:
+        lbl.set_visible(False)
+    b.grid(axis="x", visible=False)
+    b.set_title("Excise-implied taxed volume, million t", loc="left", color=INK["secondary"], fontsize=9)
+    b.annotate(f"{c.implied_taxed_mt.iloc[-1]:.1f}", (x[-1], c.implied_taxed_mt.iloc[-1]), xytext=(0, 2),
+               textcoords="offset points", ha="center", fontsize=8)
+    headline(fig, "Taxed cement volume has grown faster than measured cement output",
+             "URA domestic excise on cement (UGX 500 per 50 kg) converted to tonnes, against the UBOS production index")
+    save(fig, "fig_5_2_cement_triangulation.png",
+         "Left: domestic cement volume implied by URA excise collections (collections ÷ UGX 10,000 per tonne) and the "
+         "UBOS index of industrial production for cement, lime and plaster (ISIC 2394), fiscal-year averages, both "
+         "rebased to FY2017/18 = 100. Right: implied taxed volume, million tonnes. The excise rate was UGX 500 per 50 kg "
+         "throughout FY2017/18–FY2024/25. Sources: URA annual data books; UBOS Index of Industrial Production; Hove & "
+         "Quill calculations.", top=0.76)
+
+
+def fig_imports_lead():
+    r = pd.read_csv(D / "tri_imports_corr.csv")
+    e = pd.read_csv(D / "tri_imports_rmse.csv").set_index("group")
+    fig, (a, b) = plt.subplots(1, 2, figsize=(W, 3.2), gridspec_kw={"width_ratios": [1.3, 1], "wspace": 0.45})
+    w = 0.38
+    for k, (g, colr, name) in enumerate((("iron_steel", PAL["s1"], "iron and steel"),
+                                         ("machinery", PAL["s2"], "machinery"))):
+        v = r[r.group == g].set_index("lead_q").r_ex_covid
+        a.bar(v.index + (k - 0.5) * (w + 0.03), v, w, color=colr, label=name)
+    a.axhline(0, color=INK["muted"], lw=0.6)
+    a.set_ylim(-0.6, 0.7)
+    a.set_xticks(range(5), ["same\nquarter", "1", "2", "3", "4"], fontsize=7.5)
+    a.set_xlabel("imports taken this many quarters earlier", fontsize=7.5, color=INK["muted"])
+    a.grid(axis="x", visible=False)
+    a.set_title("Correlation with construction growth", loc="left", color=INK["secondary"], fontsize=9)
+    a.legend(loc="upper right", fontsize=7.5)
+    names = {"iron_steel": "iron and steel", "nonmetallic": "non-metallic minerals", "machinery": "machinery",
+             "iron_steel_machinery": "iron, steel + machinery*"}
+    order = ["iron_steel", "nonmetallic", "machinery", "iron_steel_machinery"]
+    yv = np.arange(len(order))[::-1]
+    b.barh(yv, e.loc[order, "rmse_imp"], color=[PAL["s1"] if e.loc[g, "imp_beats_ar"] else PAL["grey"] for g in order],
+           height=0.55)
+    base = e.rmse_ar.iloc[0]
+    b.axvline(base, color=INK["primary"], lw=0.9, ls=(0, (3, 2)))
+    b.set_xlabel(f"dashed line: baseline without imports ({base:.1f})", fontsize=7.5, color=INK["muted"])
+    b.set_yticks(yv, [names[g] for g in order], fontsize=7.5)
+    b.set_xlim(0, 14)
+    fig.subplots_adjust(bottom=0.2)
+    b.grid(axis="y", visible=False)
+    b.set_title("Forecast error, pp (lower = better)", loc="left", color=INK["secondary"], fontsize=9)
+    for yy, g in zip(yv, order):
+        win = e.loc[g, "imp_beats_ar"]   # inside the bar if it ends before the baseline, else past its end
+        b.text(e.loc[g, "rmse_imp"] + (-0.25 if win else 0.2), yy, f"{e.loc[g, 'rmse_imp']:.1f}", va="center",
+               ha="right" if win else "left", fontsize=7.5, color=INK["surface"] if win else INK["primary"])
+    headline(fig, "Steel imports move with construction in the same quarter, but add little as a forecast",
+             "UBOS imports (US$ value, y/y growth) against construction real value added (y/y), quarterly, 2017–2026")
+    save(fig, "fig_5_3_imports_lead.png",
+         "Left: correlation between year-on-year growth in quarterly imports and in construction real value added, with "
+         "imports taken in the same quarter or one to four quarters earlier (April 2020–June 2021 excluded). Right: "
+         "root-mean-square error of one-quarter-ahead forecasts of construction growth, January 2021–June 2026, from an "
+         "expanding-window regression on last quarter's growth alone (dashed line) and with imports added (bars; gold = "
+         "better than the baseline). *The model specified in advance. Sources: UBOS composition of imports (SITC 67, 66, "
+         "72, 74); UBOS Quarterly GDP; Hove & Quill calculations.", top=0.76)
+
+
 # ---------- chapter 3: prices ----------
 def fig_cipi_nowcast(m, ix):
     now = ix["cipi_nowcast"]
@@ -563,6 +684,9 @@ def main():
     fig_supply(m, q)
     fig_weather(wx)
     fig_disputes(ix)
+    fig_tax_intensity()
+    fig_cement_triangulation()
+    fig_imports_lead()
     lines = ["# Figure captions — sector report 2026", ""]
     for i, (n, c) in enumerate(sorted(CAPTIONS)):
         lines += [f"**{n}** — {c}", ""]

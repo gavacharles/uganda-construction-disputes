@@ -1,7 +1,7 @@
 """Sector report 2026: construction-relevant series from the latest UBOS releases (data/external/sector/ubos).
 
 Long output data/processed/sector2026/ubos_series.csv: series, date (period start), value, unit, freq, file.
-  QGDP   construction value added (constant 2016/17 prices, UGX bn), GDP (constant), construction share of GDP (current %)
+  QGDP   construction value added and GDP (constant 2016/17 and current prices, UGX bn), construction share of GDP (current %)
   IIP    industrial production index: cement/lime/plaster (2394), concrete articles (2395), clay building materials
          (2392), basic iron and steel (2410), non-metallic minerals (Div 23), total industry
   PPI    producer price index (manufacturing) for the same classes, monthly
@@ -46,6 +46,7 @@ def qgdp():
     out = []
     for f, sheet, series, unit in [
         (latest("*QGDP*Constant*"), "Original_VA", "gdp_construction_va_const", "UGX bn, 2016/17 prices"),
+        (latest("*QGDP*Current*"), "Original_VA", "gdp_construction_va_cur", "UGX bn, current prices"),
         (latest("*QGDP*Current*"), "Original_%share", "gdp_construction_share_cur", "% of GDP, current prices"),
     ]:
         d = pd.read_excel(f, sheet_name=sheet, header=None)
@@ -54,8 +55,9 @@ def qgdp():
         dates = [fyq_to_date(fy[c], str(d.iloc[3, c]).strip()) for c in cols]
         r = d.index[d[0].astype(str).str.strip().str.lower() == "construction"][0]
         out += rows(series, dates, d.loc[r, cols], unit, "Q", f)
-        if series == "gdp_construction_va_const":
-            out += rows("gdp_total_const", dates, d.loc[4, cols], unit, "Q", f)
+        if sheet == "Original_VA":
+            assert "GDP" in str(d.iloc[4, 0]).upper()
+            out += rows(series.replace("construction_va", "total"), dates, d.loc[4, cols], unit, "Q", f)
     return out
 
 

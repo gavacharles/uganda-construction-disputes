@@ -11,6 +11,13 @@ Series (UGX bn unless stated):
   cement_vat                   domestic VAT on cement
   construction_vat             VAT from construction (reported from FY2022/23)
   diesel_pump_price            average pump price, UGX/litre (UBOS figures reported by URA)
+  sector_table_total           'Total' row of the revenue-by-sector table (gross collections; absent in the FY2018/19 book)
+  sector_rows_sum              sum of the sector rows (incl. unsectorised), as a check on the reported total
+  unsectorised                 collections not attributed to a sector
+  department_table_total       'Total' of the revenue-by-department table (customs + domestic), a second reported total
+  ura_rev_share_pct            construction share of revenue as printed in URA's sector-contribution table (%)
+  ura_gdp_share_pct            construction share of GDP as printed in the same table (%); URA's definition is not
+                               stable across books (see triangulate.py)
 Output: data/processed/sector2026/ura_series.csv (+ ura_crosscheck.csv)
 """
 import re
@@ -44,7 +51,7 @@ def fy_label(m):
 def header_years(lines, i, span=8):
     """Fiscal-year labels of the first line near i that names at least three of them."""
     for j in range(i, min(i + span, len(lines))):
-        yrs = [fy_label(m) for m in FY.finditer(lines[j])]
+        yrs = list(dict.fromkeys(fy_label(m) for m in FY.finditer(lines[j])))  # some headers repeat the years
         if len(yrs) >= 3:  # headers are consecutive years; rebuild from the last one (fixes typos like "2019/21")
             last = int(yrs[-1][:4])
             return [f"{y}/{(y + 1) % 100:02d}" for y in range(last - len(yrs) + 1, last + 1)]
@@ -58,6 +65,8 @@ def numbers(line, n):
     for tok in NUM.findall(body):
         if tok == "-":
             vals.append(None)
+            continue
+        if not re.search(r"\d", tok):
             continue
         neg = tok.startswith("(")
         v = float(tok.strip("()").replace(",", ""))
@@ -78,6 +87,31 @@ def find_row(lines, start, label, stop=None, within=120):
     return None
 
 
+def sector_totals(lines, i, yrs, add):
+    """Reported total, sum of sector rows and the unsectorised row of the revenue-by-sector table at line i."""
+    n, sums, end = len(yrs), [0.0] * len(yrs), None
+    for k in range(i + 1, min(i + 160, len(lines))):
+        if re.search(r"Source: Uganda Revenue|Revenue share \(Net\)", lines[k]):
+            end = k
+            break
+    if end is None:
+        return
+    for k in range(i + 1, end):
+        ln = lines[k]
+        if FY.search(ln) or not ln.strip():
+            continue
+        v = numbers(ln, n)
+        if v is None:
+            continue
+        if re.match(r"^\s*total\s", ln, re.I):
+            add("sector_table_total", yrs, v, k)
+            continue
+        if re.match(r"^\s*Un\s?sectori[sz]ed", ln, re.I):
+            add("unsectorised", yrs, v, k)
+        sums = [a + (b or 0.0) for a, b in zip(sums, v)]
+    add("sector_rows_sum", yrs, sums, i)
+
+
 def extract(lines, book):
     rows = []
 
@@ -93,6 +127,22 @@ def extract(lines, book):
             k = find_row(lines, i, r"(F-)?Construction", within=60)
             if yrs and k:
                 add("construction_sector_revenue", yrs, numbers(lines[k], len(yrs)), k)
+            if yrs:
+                sector_totals(lines, i, yrs, add)
+        # URA's own revenue-share vs GDP-share table
+        if is_title(ln, r"Revenue Collections \((to )?total Revenue\) and Economic sector|Economic Sector Contribution to Total Tax"):
+            yrs = header_years(lines, i)
+            k = find_row(lines, i, r"(\d+\s+)?(F-)?Construction", within=80)
+            v = numbers(lines[k], 2 * len(yrs)) if yrs and k else None
+            if v:
+                add("ura_rev_share_pct", yrs, v[0::2], k)
+                add("ura_gdp_share_pct", yrs, v[1::2], k)
+        if is_title(ln, r"Revenue Collections by Departments"):
+            yrs = header_years(lines, i)
+            k = find_row(lines, i, r"Total", within=15)
+            v = numbers(lines[k], 2 * len(yrs)) if yrs and k else None
+            if v:
+                add("department_table_total", yrs, v[:len(yrs)], k)
         # tax heads: cement excise, cement VAT, construction VAT
         if is_title(ln, r"Table 1\.1\.1:? Revenue Collections.*by Tax Head|Table 1\.1\.\d+:? Revenue Collections \(UGX,? ?Bn\) by Tax Head"):
             yrs = header_years(lines, i)

@@ -9,7 +9,8 @@
 // Markdown supported: front matter up to the first "---" (title, *subtitle*, byline lines, *cut-off note*);
 // "## " chapter, "### " section; paragraphs; "- " bullets; "1. " numbered lists; pipe tables; "> " call-outs;
 // ![caption](figure.png); **bold**, *italic*, [text](url).
-// Usage: node scripts/build_sector_report.js <input.md> <output.docx>
+// Usage: node scripts/build_sector_report.js <input.md> <output.docx> [--compact]
+//   --compact: for short documents (concept notes): no contents page, chapters do not start on a new page.
 const fs = require("fs");
 const path = require("path");
 const {
@@ -18,6 +19,7 @@ const {
   PageBreak, SectionType,
 } = require("docx");
 
+const COMPACT = process.argv.includes("--compact");
 const FONT = "Times New Roman";
 const BRAND = { gold: "B08A33", goldDeep: "8A6B22", ink: "14120F", gray: "57534B", muted: "7D776C", stone: "E7E3D8",
   ivory: "F6F3EC" };
@@ -69,7 +71,7 @@ function table(block) {
   const ncol = rows[0].length;
   const word = (j) => Math.max(...rows.map((r) => Math.max(...(r[j] || "").replace(/\*/g, "").split(/\s+/).map((w) => w.length))));
   const len = Array.from({ length: ncol }, (_, j) =>
-    Math.max(Math.min(Math.max(...rows.map((r) => (r[j] || "").length)), 48), word(j) * 1.5 + 2, 8));
+    Math.max(Math.min(Math.max(...rows.map((r) => (r[j] || "").length)), 48), word(j) * 1.9 + 3, 8));
   const sum = len.reduce((a, b) => a + b, 0);
   const widths = len.map((x) => Math.round((TEXT_W * x) / sum));
   widths[ncol - 1] += TEXT_W - widths.reduce((a, b) => a + b, 0);
@@ -109,6 +111,7 @@ function callout(lines) {
 }
 function spacer() { const p = new Paragraph({ spacing: { after: 160 }, children: [] }); p.isSpacer = true; return p; }
 
+let listInstance = 0;
 function blocks(md, dir) {
   const out = [];
   const parts = md.replace(/\r/g, "").split(/\n\s*\n/).map((b) => b.trim()).filter(Boolean);
@@ -116,7 +119,8 @@ function blocks(md, dir) {
     if (b === "---") continue;
     if (b.startsWith("## ")) {
       while (out.length && out[out.length - 1].isSpacer) out.pop();   // avoid a blank page before a chapter
-      out.push(new Paragraph({ heading: HeadingLevel.HEADING_1, pageBreakBefore: true, children: inline(b.slice(3)) }));
+      out.push(new Paragraph({ heading: HeadingLevel.HEADING_1, pageBreakBefore: !COMPACT,
+        spacing: COMPACT && out.length ? { before: 480 } : undefined, children: inline(b.slice(3)) }));
     } else if (b.startsWith("### ")) {
       out.push(new Paragraph({ heading: HeadingLevel.HEADING_2, children: inline(b.slice(4)) }));
     } else if (/^!\[/.test(b)) {
@@ -128,8 +132,10 @@ function blocks(md, dir) {
     } else if (b.split("\n").every((l) => l.startsWith(">"))) {
       out.push(...callout(b.split("\n")));
     } else if (b.split("\n").every((l) => /^\d+\.\s/.test(l))) {
+      listInstance += 1;   // each numbered list restarts at 1
       for (const l of b.split("\n")) {
-        out.push(new Paragraph({ numbering: { reference: "findings", level: 0 }, spacing: { after: 140, line: 320 },
+        out.push(new Paragraph({ numbering: { reference: "findings", level: 0, instance: listInstance },
+          spacing: { after: 140, line: 320 },
           children: inline(l.replace(/^\d+\.\s+/, "")) }));
       }
     } else if (b.split("\n").every((l) => l.startsWith("- "))) {
@@ -197,7 +203,7 @@ function build(md, dir) {
     { properties: { page: page() }, headers: empty.header && { default: empty.header }, footers: { default: empty.footer },
       children: cover(front, dir) },
     { properties: { type: SectionType.NEXT_PAGE, page: { ...page(), pageNumbers: { start: 1 } } }, ...hf,
-      children: [
+      children: COMPACT ? before : [
         new Paragraph({ spacing: { after: 280, line: 276 },
           border: { bottom: { style: BorderStyle.SINGLE, size: 12, color: BRAND.gold, space: 6 } },
           children: [new TextRun({ text: "Contents", font: FONT, size: 36, bold: true, color: BRAND.ink })] }),
@@ -244,7 +250,7 @@ function build(md, dir) {
   });
 }
 
-const [, , input, output] = process.argv;
+const [input, output] = process.argv.slice(2).filter((a) => !a.startsWith("--"));
 if (!input || !output) { console.error("Usage: node scripts/build_sector_report.js input.md output.docx"); process.exit(1); }
 const doc = build(fs.readFileSync(input, "utf8"), path.dirname(path.resolve(input)));
 Packer.toBuffer(doc).then((buf) => { fs.writeFileSync(output, buf); console.log(`wrote ${output} (${(buf.length / 1e6).toFixed(1)} MB)`); });
