@@ -16,6 +16,7 @@ import matplotlib.pyplot as plt  # noqa: E402
 
 from src.config import INTERIM, LOGS, OUT  # noqa: E402
 from src.ingest.registers import case_id, norm_citation  # noqa: E402
+from src.viz.credit import credit
 
 OCR = INTERIM / "ocr"
 DEST = OUT / "scanned"
@@ -147,6 +148,7 @@ def fig_years(df, path):
     ax.set_axisbelow(True)
     ax.legend(frameon=False, ncol=3, loc="upper left")
     fig.tight_layout()
+    credit(fig)
     fig.savefig(path, dpi=300)
     plt.close(fig)
 
@@ -161,6 +163,7 @@ def fig_themes(share, path):
     ax.spines[["top", "right"]].set_visible(False)
     ax.set_xlim(0, 100)
     fig.tight_layout()
+    credit(fig)
     fig.savefig(path, dpi=300)
     plt.close(fig)
 

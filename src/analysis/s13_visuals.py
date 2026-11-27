@@ -1,5 +1,5 @@
-"""Stage 13 visual suite (PhD): Sankeys, animated flow map, animated cost shock, animated budget waterfall, polar quarter
-clocks and a tax waffle, built from the stage-13 outputs. Matplotlib only (custom Sankey bands); animations via ffmpeg.
+"""Stage 13 visual suite (PhD), static pieces: Sankeys, flow map, cost shock, polar quarter clocks and a tax waffle,
+built from the stage-13 outputs. Matplotlib only (custom Sankey bands). Animations live in src.analysis.s13_motion.
 
 Outputs: outputs/analysis/13_fiscal_triangulation/visuals/ (PNG 300 dpi, GIF, MP4) + captions.md
 Usage: python -m src.analysis.s13_visuals [v1,v3,...]   (run src.analysis.s13_fiscal_triangulation first)
@@ -18,6 +18,7 @@ from matplotlib.path import Path  # noqa: E402
 from src.analysis import s13_fiscal_extensions as ext  # noqa: E402
 from src.analysis.common import ANALYSIS_DIR, C  # noqa: E402
 from src.config import PROCESSED, ROOT  # noqa: E402
+from src.viz.credit import credit  # noqa: E402
 
 S = ANALYSIS_DIR / "13_fiscal_triangulation"
 V = S / "visuals"
@@ -33,6 +34,7 @@ plt.rcParams.update({"font.family": "Times New Roman", "font.size": 10, "axes.ed
 
 def save(fig, name, caption, dpi=300):
     V.mkdir(parents=True, exist_ok=True)
+    credit(fig)
     fig.savefig(V / name, dpi=dpi)
     plt.close(fig)
     CAPTIONS.append((name, caption))
@@ -53,14 +55,15 @@ def band(ax, x0, y0a, y0b, x1, y1a, y1b, color, alpha=0.45):
     ax.add_patch(PathPatch(Path(verts, codes), facecolor=color, edgecolor="none", alpha=alpha, zorder=1))
 
 
-def sankey(ax, columns, links, colors, gap=0.025, width=0.018, label_fmt="{:,.1f}", unit="", side_labels=None):
+def sankey(ax, columns, links, colors, gap=0.025, width=0.018, label_fmt="{:,.1f}", unit="", side_labels=None,
+           scale_total=None, label_size=9):
     """columns: list of lists of node names (left to right); links: (src, dst, value, link colour or None)."""
     inflow, outflow = {}, {}
     for s, d, v, _ in links:
         outflow[s] = outflow.get(s, 0) + v
         inflow[d] = inflow.get(d, 0) + v
     size = {n: max(inflow.get(n, 0), outflow.get(n, 0)) for col in columns for n in col}
-    total = max(sum(size[n] for n in col) for col in columns)
+    total = scale_total or max(sum(size[n] for n in col) for col in columns)   # fixed scale keeps frames comparable
     pos = {}
     xs = np.linspace(0.06, 0.94, len(columns))
     for x, col in zip(xs, columns):
@@ -96,11 +99,11 @@ def sankey(ax, columns, links, colors, gap=0.025, width=0.018, label_fmt="{:,.1f
             txt = f"{n.replace(chr(10), ' ')}  {label_fmt.format(size[n])}{unit}" if small else \
                 f"{n}\n{label_fmt.format(size[n])}{unit}"
             box = None if i in (0, last) else dict(boxstyle="round,pad=0.25", fc=SURF, ec="none", alpha=0.85)
-            ax.text(tx, (b + t) / 2, txt, ha=ha, va="center", fontsize=9, color=INK, zorder=4, linespacing=1.15,
+            ax.text(tx, (b + t) / 2, txt, ha=ha, va="center", fontsize=label_size, color=INK, zorder=4, linespacing=1.15,
                     bbox=box)
     if side_labels:
         for x, lab in zip(xs, side_labels):
-            ax.text(x, 1.02, lab, ha="center", va="bottom", fontsize=9.5, color=INK2, fontweight="bold")
+            ax.text(x, 1.02, lab, ha="center", va="bottom", fontsize=label_size + 0.5, color=INK2, fontweight="bold")
     ax.set_xlim(-0.12, 1.12)
     ax.set_ylim(-0.02, 1.06)
     ax.axis("off")
@@ -277,27 +280,9 @@ def v_flowmap(t):
          "Flow map of recorded construction-input imports into Uganda in 2021: one curve per origin country and input "
          "group, width proportional to value (US$ million). Sources: URA (2022); Natural Earth; author's calculations.")
 
-    fig, ax = plt.subplots(figsize=(9.6, 6), dpi=100)
-    fig.subplots_adjust(top=0.86, bottom=0.04, left=0.02, right=0.98)
-    title(fig, "Construction inputs flowing into Uganda, 2021", "Recorded imports by origin and input group "
-          "(line width proportional to US$ value)", y=0.975)
-    frames = 70
-
-    def update(i):
-        ax.clear()
-        base(ax)
-        draw(ax, min(1.0, (i + 1) / (frames - 15)))
-        return []
-
-    anim = animation.FuncAnimation(fig, update, frames=frames, interval=60, blit=False)
-    anim.save(V / "v3_flowmap_imports_2021.gif", writer=animation.PillowWriter(fps=16))
-    anim.save(V / "v3_flowmap_imports_2021.mp4", writer=animation.FFMpegWriter(fps=24, bitrate=1800))
-    plt.close(fig)
-    CAPTIONS.append(("v3_flowmap_imports_2021.gif / .mp4", "Animated version of the flow map: import routes draw in "
-                     "toward Kampala, then the ten largest origins are labelled."))
 
 
-# ---------- V4: animated cost shock ----------
+# ---------- V4: cost shock (static; animated version in s13_motion) ----------
 def v_cost_shock():
     m = pd.read_csv(PROCESSED / "sector2026" / "panel_monthly.csv", parse_dates=["date"], index_col="date")
     base = "2017-07-01"
@@ -308,6 +293,7 @@ def v_cost_shock():
     events = [("2020-04-01", "COVID-19\nlockdown"), ("2022-06-01", "Ukraine war\noil spike"),
               ("2026-04-01", "2026 oil and\nshilling shock")]
     fig, ax = plt.subplots(figsize=(9.6, 5.4), dpi=100)
+    credit(fig)
     fig.subplots_adjust(top=0.82, bottom=0.1, left=0.08, right=0.76)
     title(fig, "The cost of building in Uganda follows oil and the shilling",
           "Monthly indices, July 2017 = 100. Brent in shillings is what a road contractor ultimately pays for fuel and "
@@ -347,77 +333,14 @@ def v_cost_shock():
         return []
 
     frames = int(n / 1.6) + 25
-    anim = animation.FuncAnimation(fig, update, frames=frames, interval=70)
-    anim.save(V / "v4_cost_shock.gif", writer=animation.PillowWriter(fps=14))
-    anim.save(V / "v4_cost_shock.mp4", writer=animation.FFMpegWriter(fps=20, bitrate=1800))
     update(frames - 1)
     fig.text(0.08, 0.02, "Sources: EIA/FRED (Brent), Bank of Uganda (exchange rate), UBOS CIPI (to April 2026) and PPI.",
              fontsize=8.5, color=INK2)
     fig.savefig(V / "v4_cost_shock.png", dpi=300)
     plt.close(fig)
-    CAPTIONS.append(("v4_cost_shock.gif / .mp4 / .png", "Animated monthly indices (July 2017 = 100) of Brent crude in "
-                     "shillings, the UGX/US$ rate, the UBOS CIPI diesel sub-index (to April 2026) and building-material "
-                     "producer prices, with major shocks marked."))
-
-
-# ---------- V5: animated budget waterfall ----------
-def v_budget_waterfall():
-    _, _, y = budget_flows()
-    yrs = [fy for fy in ext.FULL_YEARS if fy in y.index.get_level_values(0)]
-    fig, ax = plt.subplots(figsize=(9.6, 5.4), dpi=100)
-    fig.subplots_adjust(top=0.8, bottom=0.12, left=0.1, right=0.96)
-    title(fig, "Every year, the construction budget leaks between approval and spending",
-          "Central government, buildings and structures (items 3121xx), UGX trillion", y=0.97)
-    steps = 20
-
-    def vals(fy):
-        r = y.loc[fy]
-        out = {}
-        for f in ("gou_dev", "ext_fin"):
-            out[f] = [r.loc[f, "approved"], r.loc[f, "released"], r.loc[f, "spent"]] if f in r.index else [0, 0, 0]
-        return out
-
-    seq = [vals(fy) for fy in yrs]
-
-    def update(i):
-        ax.clear()
-        k, j = divmod(i, steps)
-        k = min(k, len(yrs) - 1)
-        a = seq[k]
-        b = seq[min(k + 1, len(yrs) - 1)]
-        tt = 0 if i >= steps * (len(yrs) - 1) else (j / steps) ** 2 * (3 - 2 * j / steps) if j > steps * 0.5 else 0
-        cur = {f: [a[f][s] + (b[f][s] - a[f][s]) * tt for s in range(3)] for f in a}
-        x = np.arange(3)
-        ax.bar(x, cur["gou_dev"], 0.55, color=BLUE, label="Government of Uganda")
-        ax.bar(x, cur["ext_fin"], 0.55, bottom=cur["gou_dev"], color=ORANGE, label="External finance")
-        tot = [cur["gou_dev"][s] + cur["ext_fin"][s] for s in range(3)]
-        for s in range(3):
-            ax.text(s, tot[s] + 0.15, f"{tot[s]:.1f}", ha="center", fontsize=11, color=INK)
-        for s in (1, 2):
-            ax.annotate("", xy=(s - 0.3, tot[s]), xytext=(s - 0.7, tot[s - 1]),
-                        arrowprops=dict(arrowstyle="->", color=GREY, lw=1.2))
-            ax.text(s - 0.5, (tot[s] + tot[s - 1]) / 2 + 0.4, f"−{tot[s - 1] - tot[s]:.1f}", ha="center",
-                    fontsize=10, color=ORANGE if s == 1 else INK2)
-        ax.set_xticks(x, ["Approved", "Released", "Spent"], fontsize=11)
-        ax.set_ylim(0, 9.5)
-        ax.set_ylabel("UGX trillion")
-        ax.spines[["top", "right"]].set_visible(False)
-        ax.grid(axis="y", color=GRID)
-        ax.legend(frameon=False, loc="upper right")
-        lab = yrs[k] if tt < 0.5 else yrs[min(k + 1, len(yrs) - 1)]
-        ax.text(0.02, 0.92, f"FY{lab}", transform=ax.transAxes, fontsize=18, fontweight="bold", color=INK)
-        ax.text(0.02, 0.84, f"spent {100 * tot[2] / tot[0]:.0f}% of approved", transform=ax.transAxes, fontsize=11,
-                color=INK2)
-        return []
-
-    frames = steps * len(yrs) + 10
-    anim = animation.FuncAnimation(fig, update, frames=frames, interval=90)
-    anim.save(V / "v5_budget_waterfall.gif", writer=animation.PillowWriter(fps=10))
-    anim.save(V / "v5_budget_waterfall.mp4", writer=animation.FFMpegWriter(fps=12, bitrate=1500))
-    plt.close(fig)
-    CAPTIONS.append(("v5_budget_waterfall.gif / .mp4", "Animated approved–released–spent bars for buildings and "
-                     "structures by funding source, FY2016/17–FY2021/22 (FY2018/19 omitted). Source: MoFPED budget data "
-                     "portal."))
+    CAPTIONS.append(("v4_cost_shock.png", "Monthly indices (July 2017 = 100) of Brent crude in shillings, the UGX/US$ "
+                     "rate, the UBOS CIPI diesel sub-index (to April 2026) and building-material producer prices, with "
+                     "major shocks marked (static version of m2)."))
 
 
 # ---------- V6: polar quarter clocks ----------
@@ -486,7 +409,7 @@ def main(only=None):
     V.mkdir(parents=True, exist_ok=True)
     t = trade_flows()
     jobs = {"v1": v_sankey_budget, "v2": lambda: v_sankey_imports(t), "v3": lambda: v_flowmap(t), "v4": v_cost_shock,
-            "v5": v_budget_waterfall, "v6": v_quarter_clocks, "v7": v_tax_waffle}
+            "v6": v_quarter_clocks, "v7": v_tax_waffle}
     for k, fn in jobs.items():
         if not only or k in only:
             fn()

@@ -19,6 +19,7 @@ import matplotlib.pyplot as plt  # noqa: E402
 
 from src.code.rules import ISSUES, code_registers  # noqa: E402
 from src.config import INTERIM, OUT, PROCESSED, RAW, SEED  # noqa: E402
+from src.viz.credit import credit
 
 DEST = OUT / "temporal"
 LAST = pd.Timestamp("2026-11-16")              # last decision date in the 2026 registers
@@ -43,6 +44,7 @@ def style(ax):
 
 def save(fig, name):
     fig.tight_layout()
+    credit(fig)
     fig.savefig(DEST / name, dpi=300)
     plt.close(fig)
 
@@ -254,6 +256,7 @@ def fig3(shares):
                         color="white" if v > 35 else C["ink"])
         ax.set_title(name, fontsize=10)
     fig.colorbar(im, ax=axes, shrink=0.6, label="% of judgments")
+    credit(fig)
     fig.savefig(DEST / "fig3_issue_mix.png", dpi=300, bbox_inches="tight")
     plt.close(fig)
 

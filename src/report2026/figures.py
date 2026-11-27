@@ -20,6 +20,7 @@ import pandas as pd
 from matplotlib.patches import FancyBboxPatch
 
 from src.config import OUT as OUTPUTS, PROCESSED
+from src.viz.credit import credit
 from src.report2026.indices import BASE, complete_quarters
 from src.report2026.scorecard import build as build_scorecard
 
@@ -64,6 +65,7 @@ def headline(fig, title, sub, y=0.985):
 def save(fig, name, caption, top=0.80):
     fig.subplots_adjust(top=top)
     FIG.mkdir(parents=True, exist_ok=True)
+    credit(fig, org="Hove & Quill")
     fig.savefig(FIG / name, dpi=300)
     plt.close(fig)
     CAPTIONS.append((name, caption))
@@ -540,6 +542,7 @@ def scorecard_page():
         "model estimate pending UBOS releases. Court counts partly reflect wider publication of judgments.", 150)),
         fontsize=7, color=INK["muted"], va="bottom")
     FIG.mkdir(parents=True, exist_ok=True)
+    credit(fig, org="Hove & Quill")
     fig.savefig(FIG / "fig_0_2_scorecard_page.png", dpi=300)
     fig.savefig(FIG / "fig_0_2_scorecard_page.pdf")
     plt.close(fig)

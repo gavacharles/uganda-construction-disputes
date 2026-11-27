@@ -90,6 +90,7 @@ def main():
     allf = pd.concat([court, oag, obs_f])
     allf["year"] = pd.to_numeric(allf.year, errors="coerce")
     ann = allf.groupby(["year", "source", "family"]).size().unstack(["source", "family"], fill_value=0).reindex(list(yrs), fill_value=0)
+    ann.stack(["source", "family"]).rename("n").reset_index().to_csv(s.dir / "t5_annual_counts.csv", index=False)
     rows = []
     for fam in FAMILIES:
         c_ = ann.get(("court", fam), pd.Series(0, index=ann.index)).values

@@ -5,6 +5,7 @@
   pump_price_<product>      Average pump price, UGX per litre (UBOS figures reported by URA)
   vat_returns_<category>    Construction (ISIC F) VAT returns: expected, nil, non_filer, payment, offset (from the
                             FY2020/21 edition on); the FY2018/19 edition gives nil, payment and refund/offset counts
+  sector_<ISIC section>     Gross collections by ISIC section (A-T) from the revenue-by-sector table, UGX bn
   subsector_<ISIC4>         Gross collections from construction-related sub-sectors in the top-50 sub-sector table
                             (2394 cement, 4100 buildings, 42xx civil engineering, 43xx specialised, 4663 wholesale of
                             construction materials), UGX bn
@@ -22,6 +23,39 @@ PRODUCTS = {"petrol": r"Petrol\s*[\[(]?PMS[\])]?", "diesel": r"Diesel\s*[\[(]?AG
             "kerosene": r"Kero?se?ne\s*[\[(]?BIK[\])]?"}
 SUBSECTORS = ("2394", "4100", "4210", "4220", "4290", "4311", "4312", "4321", "4322", "4329", "4330", "4390", "4663")
 VAT_COLS = ["expected", "nil", "non_filer", "payment", "offset"]
+SECTIONS = [("A", r"agricultur"), ("B", r"mining"), ("C", r"manufactur"), ("D", r"electricity"), ("E", r"water supply"),
+            ("F", r"construction"), ("G", r"wholesale"), ("H", r"transport"), ("I", r"accommodation"),
+            ("J", r"information"), ("K", r"financial"), ("L", r"real estate"), ("M", r"professional"),
+            ("N", r"administrative"), ("O", r"public admin"), ("P", r"education"), ("Q", r"health"), ("R", r"arts"),
+            ("S", r"other service"), ("T", r"households"), ("U", r"extraterritorial")]
+
+
+def section_of(*texts):
+    for t in texts:
+        for code, pat in SECTIONS:
+            if t and re.search(pat, t, re.I):
+                return code
+    return None
+
+
+def sector_rows(lines, i, yrs, add):
+    """Every ISIC-section row of the revenue-by-sector table at line i (labels may wrap onto adjacent lines)."""
+    end = next((k for k in range(i + 1, min(i + 160, len(lines)))
+                if re.search(r"Source: Uganda Revenue|Revenue share \(Net\)", lines[k])), None)
+    if end is None:
+        return
+    numeric = lambda ln: numbers(ln, len(yrs)) is not None and not FY.search(ln)
+    for k in range(i + 1, end):
+        ln = lines[k]
+        if not numeric(ln) or re.match(r"^\s*(total|un\s?sectori)", ln, re.I):
+            continue
+        here = re.split(r"\s{2,}[\d(-]", ln.strip(), maxsplit=1)[0]
+        prev = lines[k - 1].strip() if not numeric(lines[k - 1]) else ""
+        nxt = lines[k + 1].strip() if k + 1 < end and not numeric(lines[k + 1]) else ""
+        code = section_of(here, prev, nxt)      # a wrapped label starts above its numbers
+        if code:
+            for y, x in zip(yrs, numbers(ln, len(yrs))):
+                add(f"sector_{code}", y, x, k)
 
 
 FY_ANY = re.compile(r"(20\d\d)\s*[-/]\s*(20)?(\d\d)\b")
@@ -49,6 +83,10 @@ def extract(lines, book):
             rows.append({"series": series, "fy": fy, "value": value, "book": book, "line": k + 1})
 
     for i, ln in enumerate(lines):
+        if is_title(ln, r"(Gross )?Revenue Collections.*by economic sector|Revenue collections \(UGX Billions\) by Economic Sector"):
+            yrs = header_years(lines, i)
+            if yrs:
+                sector_rows(lines, i, yrs, add)
         if is_title(ln, r"Recorded Fuel taxes"):
             yrs = header_years(lines, i)
             for p, pat in PRODUCTS.items():

@@ -7,6 +7,8 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 import pandas as pd  # noqa: E402
 
+from src.viz.credit import credit  # noqa: E402
+
 from src.config import OUT, PROCESSED, SEED  # noqa: E402,F401
 
 # Theme: default (academic outputs, outputs/analysis/) or UGCD_THEME=hq (Hove & Quill brand, outputs/analysis_hq/,
@@ -65,7 +67,8 @@ class Stage:
 
     def fig(self, fig, name, caption):
         self.n_fig += 1
-        fig.tight_layout()
+        fig.tight_layout(rect=(0, 0.03, 1, 1))
+        credit(fig, org="Hove & Quill" if THEME == "hq" else None)
         fig.savefig(self.dir / name, dpi=300)
         plt.close(fig)
         self.parts.append(f"![Figure {self.n_fig}]({name})\n\n*Figure {self.n_fig}. {caption}*\n")
